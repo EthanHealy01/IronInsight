@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { styles } from "../../theme/styles";
 import static_workouts from "../../database/static_workouts.json";
-import { useNavigation } from "@react-navigation/native";
 import ExerciseGifImage from "../../conponents/ExerciseGifImage";
 import ActionSheet, {
   SheetManager,
@@ -20,8 +19,7 @@ import ActionSheet, {
 } from "react-native-actions-sheet";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faCirclePlus } from "@fortawesome/free-solid-svg-icons";
-import { faCircleMinus } from "@fortawesome/free-solid-svg-icons"; // Import the minus icon
-import { WorkoutViewSwitch } from '../../components/WorkoutViewSwitch';
+import { faCircleMinus } from "@fortawesome/free-solid-svg-icons"; 
 
 // Define the ActionSheet component for showing exercise details
 const ExerciseSheet = (props) => {
@@ -241,10 +239,6 @@ const SelectExerciseList = ({ onSelect, selectedExercises, onViewChange }) => {
 
   return (
     <SafeAreaView style={[globalStyles.container]}>
-      <WorkoutViewSwitch 
-        activeView="list"
-        onViewChange={onViewChange}
-      />
       {/* Search Input */}
       <View>
       <TextInput

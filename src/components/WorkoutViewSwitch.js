@@ -2,16 +2,15 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { styles } from '../theme/styles';
 
-export const WorkoutViewSwitch = ({ activeView, onViewChange }) => {
+export const WorkoutViewSwitch = ({ activeView, onViewChange, selectedExercises }) => {
   const globalStyles = styles();
-
   return (
     <View style={[styles().flexRow, localStyles.container]}>
       <TouchableOpacity
         style={[
           localStyles.button,
           localStyles.leftButton,
-          activeView === 'selected' && localStyles.activeButton,
+          activeView === 'selected' ? localStyles.activeButton : localStyles.inctiveButton,
           {borderTopLeftRadius:100, borderBottomLeftRadius:100}
         ]}
         onPress={() => onViewChange('selected')}
@@ -20,15 +19,19 @@ export const WorkoutViewSwitch = ({ activeView, onViewChange }) => {
         <Text style={[
           globalStyles.buttonText,
           { color: activeView === 'selected' ? '#FFFFFF' : '#666666' }
-        ]}>
-          Selected Exercises
+        ]}
+        adjustsFontSizeToFit={true}
+        numberOfLines={1}
+        minimumFontScale={0.5}
+        >
+          Selected Exercises {selectedExercises && selectedExercises.length ? `(${selectedExercises.length})` : ""}
         </Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={[
           localStyles.button,
           localStyles.rightButton,
-          activeView === 'list' && localStyles.activeButton,
+          activeView === 'list' ? localStyles.activeButton : localStyles.inctiveButton,
           {borderTopRightRadius:100, borderBottomRightRadius:100}
 
         ]}
@@ -62,19 +65,23 @@ const localStyles = StyleSheet.create({
   leftButton: {
     borderTopLeftRadius: 100,
     borderBottomLeftRadius: 100,
-    borderRightWidth: 0,  // Remove right border for left button
+    borderRightWidth: 0, 
     borderWidth: 1,
     borderColor: '#E5E5E5',
   },
   rightButton: {
     borderTopRightRadius: 100,
     borderBottomRightRadius: 100,
-    borderLeftWidth: 0,   // Remove left border for right button
+    borderLeftWidth: 0,
     borderWidth: 1,
     borderColor: '#E5E5E5',
   },
   activeButton: {
     backgroundColor: '#EB9848',
-    borderColor: '#EB9848',  // Match border color with background when active
+    borderColor: '#EB9848',  
   },
+  inctiveButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor:'#FFFFFF',
+  }
 });

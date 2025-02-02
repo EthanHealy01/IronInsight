@@ -313,3 +313,81 @@ export async function initDB() {
     console.error("initDB error:", err);
   }
 }
+
+
+/**
+ * Inserts a workout into the database.
+ *
+ * @param {string} workoutName - The name of the workout.
+ * @param {Array} exercises - Array of exercise objects.
+ *    Each exercise is assumed to have a unique `name` property and an `id` property.
+ * @param {Object} exerciseData - An object mapping each exercise name to its
+ *    data. The data object should include a `sets` array where each set contains the metric values.
+ *
+ * @returns {Promise<void>} A promise that resolves if the transaction is successful or rejects on error.
+ */
+export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) {
+  return new Promise((resolve, reject) => {
+    db.transaction(tx => {
+      // 1. Insert the workout into the workouts table.
+      tx.executeSql(
+        `INSERT INTO workouts (name, created_at) VALUES (?, ?)`,
+        [workoutName, new Date().toISOString()],
+        (_, workoutResult) => {
+          const workoutId = workoutResult.insertId;
+          
+          // 2. Loop over each selected exercise.
+          exercises.forEach(exercise => {
+            // Retrieve the saved data for this exercise
+            const data = exerciseData[exercise.name];
+            if (!data) {
+              console.warn(`No data found for exercise: ${exercise.name}`);
+              return;
+            }
+            
+            // Insert an exercise row (adjust table/column names as needed)
+            tx.executeSql(
+              `INSERT INTO workout_exercises (workout_id, muscle_group_exercise_id, created_at)
+               VALUES (?, ?, ?)`,
+              [workoutId, exercise.id, new Date().toISOString()],
+              (_, exerciseResult) => {
+                const workoutExerciseId = exerciseResult.insertId;
+                
+                // 3. For each set in the exercise, insert into workout_sets.
+                data.sets.forEach((set, idx) => {
+                  // Save the entire set (all custom metrics) as a JSON string.
+                  const customMetrics = JSON.stringify(set);
+                  tx.executeSql(
+                    `INSERT INTO workout_sets (workout_exercise_id, set_number, custom_metrics, created_at)
+                     VALUES (?, ?, ?, ?)`,
+                    [workoutExerciseId, idx + 1, customMetrics, new Date().toISOString()]
+                  );
+                });
+              },
+              // Handle any error inserting the workout_exercise row.
+              (_, error) => {
+                console.error("Error inserting into workout_exercises", error);
+                reject(error);
+              }
+            );
+          });
+        },
+        // Handle any error inserting the workout.
+        (_, error) => {
+          console.error("Error inserting workout", error);
+          reject(error);
+        }
+      );
+    },
+    // Transaction error callback.
+    (txError) => {
+      console.error("Transaction error:", txError);
+      reject(txError);
+    },
+    // Transaction success callback.
+    () => {
+      console.log("Workout inserted successfully!");
+      resolve();
+    });
+  });
+}
