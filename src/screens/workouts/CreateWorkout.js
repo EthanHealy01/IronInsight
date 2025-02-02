@@ -9,16 +9,20 @@ export default function CreateWorkout({ route }) {
   const [selectedExercises, setSelectedExercises] = useState([]);
   const [showExerciseList, setShowExerciseList] = useState(true);
 
+  const handleViewChange = (view) => {
+    setShowExerciseList(view === 'list');
+  };
+
   const selectExercise = (exercise) => {
+    if (!exercise) return;
+    
     setSelectedExercises(prevExercises => {
-      if (prevExercises.some(e => e.name === exercise.name)) {
+      const exists = prevExercises.some(e => e.name === exercise.name);
+      if (exists) {
         return prevExercises.filter(e => e.name !== exercise.name);
-      } else {
-        const newExercises = [...prevExercises, exercise];
-        // Always switch to manager view when adding a new exercise
-        setShowExerciseList(false);
-        return newExercises;
       }
+      setShowExerciseList(false);
+      return [...prevExercises, exercise];
     });
   };
 
@@ -34,12 +38,14 @@ export default function CreateWorkout({ route }) {
         <SelectExerciseList 
           onSelect={selectExercise} 
           selectedExercises={selectedExercises}
+          onViewChange={handleViewChange}
         />
       ) : (
         <SelectedExercisesManager 
           exercises={selectedExercises}
           onAddExercise={() => setShowExerciseList(true)}
           onDeleteExercise={handleDeleteExercise}
+          onViewChange={handleViewChange}
         />
       )}
     </View>

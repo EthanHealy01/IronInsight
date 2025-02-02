@@ -39,7 +39,7 @@ const ExerciseItem = ({
   const [activeMetrics, setActiveMetrics] = useState(DEFAULT_METRICS);
   const [showMetricModal, setShowMetricModal] = useState(false);
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
 
   const addSet = () => {
     const newSet = {};
@@ -133,10 +133,7 @@ const ExerciseItem = ({
                 </View>
                 {activeMetrics.map((metric) => (
                   <View key={metric.id} style={{ width: 80, marginRight: 10 }}>
-                    <View
-                      style={[globalStyles.flexRowBetween, { marginBottom: 5 }]}
-                    >
-                     <View style={[globalStyles.flexRowBetween, { marginBottom: 5 }]}>
+                    <View style={[globalStyles.flexRowBetween, { marginBottom: 5 }]}>
                         {metric.hasTimeOption ? (
                           <TouchableOpacity
                             style={[
@@ -197,7 +194,6 @@ const ExerciseItem = ({
                           </TouchableOpacity>
                         )}
                       </View>
-                    </View>
                     
                   </View>
                 ))}
@@ -286,9 +282,10 @@ const SelectedExercisesManager = ({
   exercises = [],
   onAddExercise,
   onDeleteExercise,
+  onViewChange,
 }) => {
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
   const [expandedIndex, setExpandedIndex] = useState(-1);
   const [workoutName, setWorkoutName] = useState("");
 
@@ -314,7 +311,6 @@ const SelectedExercisesManager = ({
       <SafeAreaView
         style={[
           globalStyles.container,
-          { justifyContent: "center", alignItems: "center" },
         ]}
       >
         <View style={[globalStyles.flexRowBetween, { padding: 15 }]}>
@@ -334,10 +330,13 @@ const SelectedExercisesManager = ({
               },
             ]}
           />
-          <TouchableOpacity onPress={onAddExercise}>
+          <TouchableOpacity onPress={onAddExercise} style={[globalStyles.flexRow,{gap:5}]}>
+            <Text style={globalStyles.fontSizeSmall}>
+              Add an exercise
+            </Text>
             <FontAwesomeIcon
               icon={faPlus}
-              size={24}
+              size={18}
               color={isDark ? "#FFFFFF" : "#000000"}
             />
           </TouchableOpacity>
@@ -358,11 +357,7 @@ const SelectedExercisesManager = ({
     <SafeAreaView style={[globalStyles.container]}>
       <WorkoutViewSwitch 
         activeView="selected"
-        onViewChange={(view) => {
-          if (view === 'list') {
-            onAddExercise();
-          }
-        }}
+        onViewChange={onViewChange}
       />
       <View style={[globalStyles.flexRowBetween, { padding: 15 }]}>
         <TextInput
@@ -381,10 +376,12 @@ const SelectedExercisesManager = ({
             },
           ]}
         />
-        <TouchableOpacity onPress={onAddExercise}>
-          <FontAwesomeIcon
+          <TouchableOpacity onPress={onAddExercise} style={[globalStyles.flexRow,{gap:5}]}>
+            <Text style={globalStyles.fontSizeSmall}>
+              Add an exercise
+            </Text>          <FontAwesomeIcon
             icon={faPlus}
-            size={24}
+            size={18}
             color={isDark ? "#FFFFFF" : "#000000"}
           />
         </TouchableOpacity>

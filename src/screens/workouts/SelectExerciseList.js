@@ -8,6 +8,7 @@ import {
   TextInput,
   useColorScheme,
   Dimensions,
+  SafeAreaView,
 } from "react-native";
 import { styles } from "../../theme/styles";
 import static_workouts from "../../database/static_workouts.json";
@@ -20,6 +21,7 @@ import ActionSheet, {
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faCirclePlus } from "@fortawesome/free-solid-svg-icons";
 import { faCircleMinus } from "@fortawesome/free-solid-svg-icons"; // Import the minus icon
+import { WorkoutViewSwitch } from '../../components/WorkoutViewSwitch';
 
 // Define the ActionSheet component for showing exercise details
 const ExerciseSheet = (props) => {
@@ -211,13 +213,11 @@ const ItemRow = ({ item, onSelect, selectedExercises }) => {
     );
 };
 
-const SelectExerciseList = ({ onSelect, selectedExercises }) => {
+const SelectExerciseList = ({ onSelect, selectedExercises, onViewChange }) => {
   const globalStyles = styles();
-  const isDarkMode = useColorScheme() === "dark";
+  const isDarkMode = useColorScheme() === 'dark';
   const [selectedMuscle, setSelectedMuscle] = useState("All");
-  const [difficultyFilter, setDifficultyFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const navigation = useNavigation();
 
   // Get unique muscle groups from the dataset
   const muscleGroups = [
@@ -240,7 +240,11 @@ const SelectExerciseList = ({ onSelect, selectedExercises }) => {
   });
 
   return (
-    <View style={globalStyles.container}>
+    <SafeAreaView style={[globalStyles.container]}>
+      <WorkoutViewSwitch 
+        activeView="list"
+        onViewChange={onViewChange}
+      />
       {/* Search Input */}
       <View>
       <TextInput
@@ -284,7 +288,7 @@ const SelectExerciseList = ({ onSelect, selectedExercises }) => {
         maxToRenderPerBatch={5}
         windowSize={5}
       />
-    </View>
+      </SafeAreaView>
   );
 };
 
