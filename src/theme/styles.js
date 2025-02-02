@@ -217,6 +217,115 @@ export const styles = () => {
         },
         secondaryColor: {
             backgroundColor: "#748CA3"
-        }
+        },
+
+        // Modal Styles
+        modalContainer: {
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 20,
+        },
+        modalContent: {
+            width: '100%',
+            borderRadius: 15,
+            padding: 20,
+            maxHeight: '80%',
+            shadowColor: isDarkMode ? '#000000' : '#000000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+        },
+        metricItem: {
+            borderRadius: 8,
+            marginBottom: 10,
+        },
+        
+        // Input Styles
+        input: {
+            borderWidth: 1,
+            borderColor: isDarkMode ? '#333333' : '#E5E5E5',
+            borderRadius: 8,
+            padding: 10,
+            color: isDarkMode ? '#FFFFFF' : '#000000',
+            backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
+        },
+        
+        // Button Styles
+        primaryButton: {
+            backgroundColor: '#EB9848',
+            borderRadius: 25,
+            padding: 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: isDarkMode ? 'transparent' : '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+        },
+        secondaryButton: {
+            backgroundColor: '#748CA3',
+            borderRadius: 25,
+            padding: 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+            shadowColor: isDarkMode ? 'transparent' : '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+        },
+        buttonText: {
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '600',
+        },
+        button: {
+            backgroundColor: '#007AFF',
+            borderRadius: 8,
+            padding: 15,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        buttonText: {
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '600',
+        },
+        typeButton: {
+            padding: 10,
+            borderRadius: 8,
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: isDarkMode ? '#333333' : '#E5E5E5',
+        },
+        typeButtonActive: {
+            backgroundColor: '#007AFF',
+            borderColor: '#007AFF',
+        },
+        primaryButton: {
+            backgroundColor: '#EB9848',
+            borderRadius:10,
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical:10,
+        },
+        secondaryButton: {
+            backgroundColor: '#748CA3',
+            borderRadius:10,
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical:10
+        },
+        buttonText: {
+            color: '#FFFFFF',
+            fontSize: 16,
+            fontWeight: '600',
+        },  
     };
 };

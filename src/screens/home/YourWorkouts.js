@@ -26,7 +26,7 @@ export default function YourWorkouts() {
   const [workoutsData, setworkoutsData] = useState([]);
   const [loading, setLoading] = useState(true);
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
   const navigation = useNavigation();
 
   useEffect(() => {

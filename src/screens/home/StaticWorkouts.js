@@ -91,7 +91,7 @@ const MuscleGroupCard = ({ image, title, muscle_group, body }) => {
 const StaticWorkouts = () => {
   const navigation = useNavigation();
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
 
   return (
     <>

@@ -199,7 +199,7 @@ const ItemRow = ({ item, onSelect, selectedExercises }) => {
 
 const SelectExerciseList = ({ onSelect, selectedExercises }) => {
   const globalStyles = styles();
-  const isDarkMode = useColorScheme() === "dark";
+  const isDarkMode = useColorScheme() === 'dark';
   const [selectedMuscle, setSelectedMuscle] = useState("All");
   const [difficultyFilter, setDifficultyFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
