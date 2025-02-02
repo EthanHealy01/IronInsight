@@ -1,10 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
-/** The local SQLite DB filename. */
-const DB_NAME = 'fitness_app.db';
-
 /** We'll keep our opened db here. */
-let db = null;
+let db = SQLite.openDatabaseSync("iron_insight")
 
 /**
  * Creates all tables IF they do not exist,
@@ -233,6 +230,72 @@ async function createTablesIfNotExist() {
     );
   `);
 
+  // Add this to your createTablesIfNotExist function
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workouts (
+      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      name TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES user(user_id)
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workout_exercises (
+      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_id INTEGER,
+      exercise_name TEXT NOT NULL,
+      exercise_order INTEGER NOT NULL,
+      created_at TEXT,
+      FOREIGN KEY (workout_id) REFERENCES users_workouts(workout_id) ON DELETE CASCADE
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workout_sets (
+      set_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_exercise_id INTEGER,
+      set_number INTEGER NOT NULL,
+      metrics_data TEXT NOT NULL,  -- JSON string containing all metrics (including custom ones)
+      created_at TEXT,
+      FOREIGN KEY (workout_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id) ON DELETE CASCADE
+    );
+  `);
+
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workouts (
+      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      name TEXT NOT NULL,
+      created_at TEXT,
+      updated_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES user(user_id)
+    );
+  `);
+  
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workout_exercises (
+      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_id INTEGER,
+      exercise_name TEXT NOT NULL,
+      exercise_order INTEGER NOT NULL,
+      created_at TEXT,
+      FOREIGN KEY (workout_id) REFERENCES users_workouts(workout_id) ON DELETE CASCADE
+    );
+  `);
+  
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS users_workout_sets (
+      set_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_exercise_id INTEGER,
+      set_number INTEGER NOT NULL,
+      metrics_data TEXT NOT NULL,  -- JSON string containing all metrics (including custom ones)
+      created_at TEXT,
+      FOREIGN KEY (workout_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id) ON DELETE CASCADE
+    );
+  `);
   console.log('All tables created or already exist (existing data preserved).');
 }
 
@@ -297,8 +360,8 @@ async function logAllTablesAndData() {
 /** initDB: open, enable FKs, create tables, then log schema + data. */
 export async function initDB() {
   try {
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    console.log("Database opened successfully:", DB_NAME);
+    db = await SQLite.openDatabaseAsync('iron_insight');
+    console.log("Database opened successfully:", "iron_insight");
 
     await db.execAsync("PRAGMA foreign_keys = ON;");
     console.log("Foreign keys enabled.");
@@ -327,67 +390,64 @@ export async function initDB() {
  * @returns {Promise<void>} A promise that resolves if the transaction is successful or rejects on error.
  */
 export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      // 1. Insert the workout into the workouts table.
-      tx.executeSql(
-        `INSERT INTO workouts (name, created_at) VALUES (?, ?)`,
-        [workoutName, new Date().toISOString()],
-        (_, workoutResult) => {
-          const workoutId = workoutResult.insertId;
-          
-          // 2. Loop over each selected exercise.
-          exercises.forEach(exercise => {
-            // Retrieve the saved data for this exercise
-            const data = exerciseData[exercise.name];
-            if (!data) {
-              console.warn(`No data found for exercise: ${exercise.name}`);
-              return;
-            }
-            
-            // Insert an exercise row (adjust table/column names as needed)
-            tx.executeSql(
-              `INSERT INTO workout_exercises (workout_id, muscle_group_exercise_id, created_at)
-               VALUES (?, ?, ?)`,
-              [workoutId, exercise.id, new Date().toISOString()],
-              (_, exerciseResult) => {
-                const workoutExerciseId = exerciseResult.insertId;
-                
-                // 3. For each set in the exercise, insert into workout_sets.
-                data.sets.forEach((set, idx) => {
-                  // Save the entire set (all custom metrics) as a JSON string.
-                  const customMetrics = JSON.stringify(set);
-                  tx.executeSql(
-                    `INSERT INTO workout_sets (workout_exercise_id, set_number, custom_metrics, created_at)
-                     VALUES (?, ?, ?, ?)`,
-                    [workoutExerciseId, idx + 1, customMetrics, new Date().toISOString()]
-                  );
-                });
-              },
-              // Handle any error inserting the workout_exercise row.
-              (_, error) => {
-                console.error("Error inserting into workout_exercises", error);
-                reject(error);
-              }
-            );
-          });
-        },
-        // Handle any error inserting the workout.
-        (_, error) => {
-          console.error("Error inserting workout", error);
-          reject(error);
-        }
+  try {
+    // 1. Insert the workout
+    const workoutResult = await db.runAsync(
+      `INSERT INTO users_workouts (name, created_at) 
+       VALUES (?, ?)`,
+      [workoutName, new Date().toISOString()]
+    );
+    const workoutId = workoutResult.lastInsertRowId;
+
+    // 2. Insert exercises with their order
+    for (let i = 0; i < exercises.length; i++) {
+      const exercise = exercises[i];
+      const exerciseResult = await db.runAsync(
+        `INSERT INTO users_workout_exercises (
+          workout_id, 
+          exercise_name, 
+          exercise_order,
+          created_at
+        ) VALUES (?, ?, ?, ?)`,
+        [
+          workoutId,
+          exercise.name,
+          i, // Using array index as order
+          new Date().toISOString()
+        ]
       );
-    },
-    // Transaction error callback.
-    (txError) => {
-      console.error("Transaction error:", txError);
-      reject(txError);
-    },
-    // Transaction success callback.
-    () => {
-      console.log("Workout inserted successfully!");
-      resolve();
-    });
-  });
+      const workoutExerciseId = exerciseResult.lastInsertRowId;
+
+      // 3. Insert sets with all metrics
+      const data = exerciseData[exercise.name];
+      if (data && data.sets) {
+        for (let setIdx = 0; setIdx < data.sets.length; setIdx++) {
+          const setData = data.sets[setIdx];
+          await db.runAsync(
+            `INSERT INTO users_workout_sets (
+              workout_exercise_id,
+              set_number,
+              metrics_data,
+              created_at
+            ) VALUES (?, ?, ?, ?)`,
+            [
+              workoutExerciseId,
+              setIdx + 1,
+              JSON.stringify({
+                ...setData,
+                activeMetrics: data.activeMetrics // Store which metrics were active
+              }),
+              new Date().toISOString()
+            ]
+          );
+        }
+      }
+    }
+
+    console.log("Workout saved successfully!");
+    return true;
+  } catch (error) {
+    console.error("Error saving workout:", error);
+    throw error;
+  }
 }

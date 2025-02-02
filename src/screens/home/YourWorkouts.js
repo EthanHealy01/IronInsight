@@ -20,7 +20,8 @@ import {
 import { styles } from "../../theme/styles";
 import { useNavigation } from "@react-navigation/native";
 
-const db = SQLite.openDatabaseAsync("fitness_app.db");
+// Change the database initialization
+const db = SQLite.openDatabaseSync("iron_insight");
 
 export default function YourWorkouts() {
   const [workoutsData, setworkoutsData] = useState([]);
@@ -32,8 +33,17 @@ export default function YourWorkouts() {
   useEffect(() => {
     async function loadworkouts() {
       try {
-        const database = await db;
-        const rows = await database.getAllAsync("SELECT * FROM workouts");
+        // No need to await db since it's sync
+        const rows = await db.getAllAsync(`
+          SELECT 
+            w.*,
+            COUNT(DISTINCT we.workout_exercise_id) as exercise_count
+          FROM users_workouts w
+          LEFT JOIN users_workout_exercises we ON w.workout_id = we.workout_id
+          GROUP BY w.workout_id
+          ORDER BY w.created_at DESC
+          LIMIT 5
+        `);
         console.log("Workouts loaded:", rows);
         setworkoutsData(rows);
         setLoading(false);
@@ -47,9 +57,33 @@ export default function YourWorkouts() {
   }, []);
 
   const renderworkoutItem = ({ item }) => (
-    <TouchableOpacity style={globalStyles.workoutCard}>
-      <Text style={globalStyles.workoutTitle} numberOfLines={1}>
+    <TouchableOpacity 
+      style={[
+        globalStyles.workoutCard,
+        { 
+          width: Dimensions.get('window').width * 0.7,
+          marginRight: 10,
+          padding: 15,
+          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+        }
+      ]}
+    >
+      <Text 
+        style={[
+          globalStyles.workoutTitle,
+          { color: isDark ? '#FFFFFF' : '#000000' }
+        ]} 
+        numberOfLines={1}
+      >
         {item.name}
+      </Text>
+      <Text 
+        style={[
+          globalStyles.fontSizeSmall,
+          { color: isDark ? '#999999' : '#666666', marginTop: 5 }
+        ]}
+      >
+        {item.exercise_count} {item.exercise_count === 1 ? 'exercise' : 'exercises'}
       </Text>
     </TouchableOpacity>
   );

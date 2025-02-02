@@ -26,6 +26,8 @@ import { DEFAULT_METRICS } from "../../database/workout_metrics";
 import { AddMetricModal } from "../../components/AddMetricModal";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, { useAnimatedStyle } from "react-native-reanimated";
+import { SaveWorkoutModal } from '../../components/SaveWorkoutModal';
+import { insertWorkoutIntoDB } from '../../database/db';
 
 const RIGHT_ACTION_WIDTH = 75;
 
@@ -76,7 +78,7 @@ const SelectedExercisesManager = ({
   onViewChange,
 }) => {
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
   const [expandedIndex, setExpandedIndex] = useState(-1);
 
   // Expand the last exercise by default whenever exercises change
@@ -103,14 +105,21 @@ const SelectedExercisesManager = ({
     }
   };
 
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
+  const handleSaveWorkout = async (name, orderedExercises) => {
+    try {
+      await insertWorkoutIntoDB(name, orderedExercises, exerciseData);
+      setShowSaveModal(false);
+      // Add navigation or success feedback here
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      Alert.alert('Error', 'Failed to save workout. Please try again.');
+    }
+  };
+
   return (
-    <SafeAreaView
-      style={[
-        globalStyles.container,
-        { marginBottom: 80, overflow: "visible" },
-      ]}
-    >
-      {/* Always show the “workout name” & “Add an exercise” row */}
+    <SafeAreaView style={[globalStyles.container, {marginBottom:80}]}>
       <View style={[globalStyles.flexRowBetween, { padding: 15 }]}>
         <TextInput
           value={workoutName}
@@ -181,10 +190,10 @@ const SelectedExercisesManager = ({
               {
                 width: Dimensions.get("screen").width * 0.35,
                 marginLeft: "auto",
-                gap:5
+                gap: 5
               },
             ]}
-            onPress={() => saveWorkout()}
+            onPress={() => setShowSaveModal(true)}
           >
             <Text style={[globalStyles.fontWeightSemiBold, { color: "white" }]}>
               Save workout
@@ -193,6 +202,15 @@ const SelectedExercisesManager = ({
           </TouchableOpacity>
         </>
       )}
+
+      <SaveWorkoutModal
+        visible={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        exercises={exercises}
+        workoutName={workoutName}
+        onSave={handleSaveWorkout}
+        exerciseData={exerciseData}
+      />
     </SafeAreaView>
   );
 };
@@ -209,7 +227,7 @@ const ExerciseItem = ({
   const { sets, activeMetrics } = exerciseData;
   const [showMetricModal, setShowMetricModal] = useState(false);
   const globalStyles = styles();
-  const isDark = useColorScheme() === "dark";
+  const isDark = useColorScheme() === 'dark';
 
   const addSet = () => {
     const newSet = {};
