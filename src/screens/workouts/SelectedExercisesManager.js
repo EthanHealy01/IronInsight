@@ -362,6 +362,10 @@ const ExerciseItem = ({
             backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
           }}
         >
+          <Text style={[globalStyles.fontSizeSmall, globalStyles.grayText, {marginBottom:10}]}>
+            If you wish, fill the fields with the weight you liften in your last workout.
+            You can also add extra metrics like rest time/RIR etc.
+          </Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
               {/* Header row for the metrics */}

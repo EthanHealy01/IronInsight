@@ -19,6 +19,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { styles } from "../../theme/styles";
 import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 
 // Change the database initialization
 const db = SQLite.openDatabaseSync("iron_insight");
@@ -30,31 +31,32 @@ export default function YourWorkouts() {
   const isDark = useColorScheme() === 'dark';
   const navigation = useNavigation();
 
-  useEffect(() => {
-    async function loadworkouts() {
-      try {
-        // No need to await db since it's sync
-        const rows = await db.getAllAsync(`
-          SELECT 
-            w.*,
-            COUNT(DISTINCT we.workout_exercise_id) as exercise_count
-          FROM users_workouts w
-          LEFT JOIN users_workout_exercises we ON w.workout_id = we.workout_id
-          GROUP BY w.workout_id
-          ORDER BY w.created_at DESC
-          LIMIT 5
-        `);
-        console.log("Workouts loaded:", rows);
-        setworkoutsData(rows);
-        setLoading(false);
-      } catch (error) {
-        console.error("Error loading workouts:", error);
-        setLoading(false);
-      }
+  const loadWorkouts = async () => {
+    try {
+      const rows = await db.getAllAsync(`
+        SELECT 
+          w.*,
+          COUNT(DISTINCT we.workout_exercise_id) as exercise_count
+        FROM users_workouts w
+        LEFT JOIN users_workout_exercises we ON w.workout_id = we.workout_id
+        GROUP BY w.workout_id
+        ORDER BY w.created_at DESC
+        LIMIT 5
+      `);
+      setworkoutsData(rows);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading workouts:", error);
+      setLoading(false);
     }
+  };
 
-    loadworkouts();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      setLoading(true);
+      loadWorkouts();
+    }, [])
+  );
 
   const renderworkoutItem = ({ item }) => (
     <TouchableOpacity 
@@ -67,6 +69,23 @@ export default function YourWorkouts() {
           backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
         }
       ]}
+      onPress={async () => {
+        try {
+          // Set this workout as active
+          await db.runAsync(`
+            UPDATE app_state 
+            SET currently_exercising = 1, 
+                active_workout_id = ?,
+                current_exercise_id = NULL
+          `, [item.workout_id]);
+          
+          // Force parent HomeScreen to re-render by triggering a focus event
+          navigation.navigate('Home');
+        } catch (error) {
+          console.error("Error starting workout:", error);
+          alert('Failed to start workout');
+        }
+      }}
     >
       <Text 
         style={[

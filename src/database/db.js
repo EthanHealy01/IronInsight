@@ -1,253 +1,29 @@
 import * as SQLite from 'expo-sqlite';
 
-/** We'll keep our opened db here. */
-let db = SQLite.openDatabaseSync("iron_insight")
+let db = SQLite.openDatabaseSync("iron_insight");
 
-/**
- * Creates all tables IF they do not exist,
- * preserving existing data.
- */
 async function createTablesIfNotExist() {
-  // user
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS user (
-      user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT,
-      name TEXT,
-      sex TEXT,
-      date_of_birth TEXT,
-      height REAL,
-      weight REAL,
-      email TEXT,
-      password TEXT,
-      profile_picture TEXT,
+    CREATE TABLE IF NOT EXISTS users_workouts (
+      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      name TEXT NOT NULL,
       created_at TEXT,
       updated_at TEXT
     );
   `);
 
-  // biometrics
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS biometrics (
-      biometrics_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      record_date TEXT,
-      weight REAL,
-      body_fat REAL,
-      muscle_mass REAL,
-      resting_heart_rate INTEGER,
-      blood_pressure TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // muscle_group_exercises
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS muscle_group_exercises (
-      muscle_group_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      name TEXT,
+    CREATE TABLE IF NOT EXISTS users_workout_exercises (
+      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_id INTEGER,
+      exercise_name TEXT NOT NULL,
+      exercise_order INTEGER NOT NULL,
+      suggested_sets INTEGER DEFAULT 3,
+      suggested_reps INTEGER DEFAULT 10,
+      recommended_weight REAL,
       muscle_group TEXT,
       secondary_muscle_group TEXT,
-      equipment_required TEXT,
-      description TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // workouts
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workouts (
-      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      name TEXT,
-      description TEXT,
-      default_schedule TEXT,
-      public_or_private INTEGER,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // workout_exercises
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workout_exercises (
-      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      workout_id INTEGER,
-      muscle_group_exercise_id INTEGER,
-      suggested_sets INTEGER,
-      suggested_reps INTEGER,
-      recommended_weight REAL,
-      progression_scheme TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id),
-      FOREIGN KEY (workout_id) REFERENCES workouts(workout_id),
-      FOREIGN KEY (muscle_group_exercise_id) REFERENCES muscle_group_exercises(muscle_group_exercise_id)
-    );
-  `);
-
-  // workout_sessions
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workout_sessions (
-      workout_session_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      workout_date TEXT,
-      start_time TEXT,
-      end_time TEXT,
-      duration INTEGER,
-      notes TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // workout_exercises
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workout_exercises (
-      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      workout_session_id INTEGER,
-      muscle_group_exercise_id INTEGER,
-      notes TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id),
-      FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(workout_session_id),
-      FOREIGN KEY (muscle_group_exercise_id) REFERENCES muscle_group_exercises(muscle_group_exercise_id)
-    );
-  `);
-
-  // workout_sets
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS workout_sets (
-      workout_set_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      workout_exercise_id INTEGER,
-      set_number INTEGER,
-      reps INTEGER,
-      weight REAL,
-      tempo TEXT,
-      rest_period INTEGER,
-      RPE INTEGER,
-      custom_metrics TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id),
-      FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises(workout_exercise_id)
-    );
-  `);
-
-  // progress_photos
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS progress_photos (
-      progress_photo_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      photo_blob BLOB,
-      photo_size INTEGER,
-      photo_format TEXT,
-      caption TEXT,
-      taken_at TEXT,
-      private_or_public INTEGER,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // achievements
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS achievements (
-      achievement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT,
-      description TEXT,
-      category TEXT,
-      difficulty_level TEXT,
-      created_at TEXT,
-      updated_at TEXT
-    );
-  `);
-
-  // user_achievements
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS user_achievements (
-      user_achievement_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      achievement_id INTEGER,
-      progress INTEGER,
-      earned_at TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id),
-      FOREIGN KEY (achievement_id) REFERENCES achievements(achievement_id)
-    );
-  `);
-
-  // goals
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS goals (
-      goal_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      goal_type TEXT,
-      target_value REAL,
-      current_value REAL,
-      start_date TEXT,
-      end_date TEXT,
-      reminder_frequency TEXT,
-      notifications_enabled INTEGER,
-      priority INTEGER,
-      status TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // meal_logs
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS meal_logs (
-      meal_log_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      log_date TEXT,
-      meal_type TEXT,
-      meal_description TEXT,
-      calories INTEGER,
-      protein REAL,
-      carbs REAL,
-      fats REAL,
-      water_intake REAL,
-      time_of_meal TEXT,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  // Add this to your createTablesIfNotExist function
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workouts (
-      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      name TEXT NOT NULL,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
-    );
-  `);
-
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workout_exercises (
-      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_id INTEGER,
-      exercise_name TEXT NOT NULL,
-      exercise_order INTEGER NOT NULL,
       created_at TEXT,
       FOREIGN KEY (workout_id) REFERENCES users_workouts(workout_id) ON DELETE CASCADE
     );
@@ -258,148 +34,69 @@ async function createTablesIfNotExist() {
       set_id INTEGER PRIMARY KEY AUTOINCREMENT,
       workout_exercise_id INTEGER,
       set_number INTEGER NOT NULL,
-      metrics_data TEXT NOT NULL,  -- JSON string containing all metrics (including custom ones)
+      metrics_data TEXT NOT NULL,
       created_at TEXT,
       FOREIGN KEY (workout_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id) ON DELETE CASCADE
     );
   `);
 
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workouts (
-      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      name TEXT NOT NULL,
-      created_at TEXT,
-      updated_at TEXT,
-      FOREIGN KEY (user_id) REFERENCES user(user_id)
+    CREATE TABLE IF NOT EXISTS app_state (
+      currently_exercising BOOLEAN DEFAULT 0,
+      active_workout_id INTEGER,
+      current_exercise_id INTEGER,
+      FOREIGN KEY (active_workout_id) REFERENCES users_workouts(workout_id),
+      FOREIGN KEY (current_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id)
     );
   `);
-  
+
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workout_exercises (
-      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_id INTEGER,
-      exercise_name TEXT NOT NULL,
-      exercise_order INTEGER NOT NULL,
-      created_at TEXT,
-      FOREIGN KEY (workout_id) REFERENCES users_workouts(workout_id) ON DELETE CASCADE
-    );
+    INSERT OR IGNORE INTO app_state (currently_exercising, active_workout_id, current_exercise_id)
+    SELECT 0, NULL, NULL
+    WHERE NOT EXISTS (SELECT 1 FROM app_state);
   `);
-  
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workout_sets (
-      set_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_exercise_id INTEGER,
-      set_number INTEGER NOT NULL,
-      metrics_data TEXT NOT NULL,  -- JSON string containing all metrics (including custom ones)
-      created_at TEXT,
-      FOREIGN KEY (workout_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id) ON DELETE CASCADE
-    );
-  `);
-  console.log('All tables created or already exist (existing data preserved).');
 }
 
-/** 
- * logAllTablesAndData: 
- *  1) Find all user tables 
- *  2) For each table, log the schema (PRAGMA table_info) 
- *  3) Also SELECT * from table, log data rows in a formatted manner 
- */
-async function logAllTablesAndData() {
-  // Step 1) get all user-defined tables
-  const tables = await db.getAllAsync(`
-    SELECT name FROM sqlite_master
-    WHERE type='table' 
-      AND name NOT LIKE 'sqlite_%'
-      AND name NOT LIKE '__websql%';
-  `);
-
-  for (const t of tables) {
-    const tableName = t.name;
-    console.log(`\n=== TABLE SCHEMA: ${tableName} ===`);
-
-    // Step 2) PRAGMA table_info to get columns
-    const columns = await db.getAllAsync(`PRAGMA table_info(${tableName});`);
-    if (columns.length > 0) {
-      console.log(" cid |     name     |    type    | notnull | pk ");
-      console.log("-----+-------------+------------+---------+----");
-      columns.forEach((col) => {
-        const cid = String(col.cid).padEnd(3);
-        const name = String(col.name).padEnd(12);
-        const type = String(col.type).padEnd(10);
-        const notnull = String(col.notnull).padEnd(6);
-        const pk = String(col.pk).padEnd(2);
-        console.log(` ${cid}| ${name}| ${type}| ${notnull}| ${pk}`);
-      });
-    } else {
-      console.log("(No columns found or table might not exist.)");
-    }
-
-    // Step 3) SELECT all data from the table
-    console.log(`\n=== TABLE DATA: ${tableName} ===`);
-    const rows = await db.getAllAsync(`SELECT * FROM ${tableName};`);
-
-    if (rows.length === 0) {
-      console.log("(No rows found in this table.)");
-    } else {
-      // Print header from the first row's keys
-      const keys = Object.keys(rows[0]);
-      const header = keys.join(" | ");
-      console.log(header);
-
-      // Print each row
-      rows.forEach((row) => {
-        // Build a line from each key
-        const line = keys.map((k) => String(row[k])).join(" | ");
-        console.log(line);
-      });
-    }
-  }
-}
-
-/** initDB: open, enable FKs, create tables, then log schema + data. */
 export async function initDB() {
   try {
     db = await SQLite.openDatabaseAsync('iron_insight');
-    console.log("Database opened successfully:", "iron_insight");
-
     await db.execAsync("PRAGMA foreign_keys = ON;");
-    console.log("Foreign keys enabled.");
-
     await createTablesIfNotExist();
-
-    // Finally, log both schema & data
-    await logAllTablesAndData();
-
-    console.log("initDB complete—no data insertion, old data preserved.");
   } catch (err) {
     console.error("initDB error:", err);
   }
 }
 
+export async function debugWorkoutData(workoutId) {
+  console.log("\n=== Debugging Workout Data ===");
+  
+  // Check workout
+  const workout = await db.getAllAsync(
+    "SELECT * FROM users_workouts WHERE workout_id = ?",
+    [workoutId]
+  );
+  console.log("Workout:", workout);
 
-/**
- * Inserts a workout into the database.
- *
- * @param {string} workoutName - The name of the workout.
- * @param {Array} exercises - Array of exercise objects.
- *    Each exercise is assumed to have a unique `name` property and an `id` property.
- * @param {Object} exerciseData - An object mapping each exercise name to its
- *    data. The data object should include a `sets` array where each set contains the metric values.
- *
- * @returns {Promise<void>} A promise that resolves if the transaction is successful or rejects on error.
- */
+  // Check exercises
+  const exercises = await db.getAllAsync(
+    "SELECT * FROM users_workout_exercises WHERE workout_id = ?",
+    [workoutId]
+  );
+  console.log("Exercises:", exercises);
+
+  // Check app state
+  const appState = await db.getAllAsync("SELECT * FROM app_state");
+  console.log("App State:", appState);
+}
+
 export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) {
   try {
-    // 1. Insert the workout
     const workoutResult = await db.runAsync(
-      `INSERT INTO users_workouts (name, created_at) 
-       VALUES (?, ?)`,
+      `INSERT INTO users_workouts (name, created_at) VALUES (?, ?)`,
       [workoutName, new Date().toISOString()]
     );
     const workoutId = workoutResult.lastInsertRowId;
 
-    // 2. Insert exercises with their order
     for (let i = 0; i < exercises.length; i++) {
       const exercise = exercises[i];
       const exerciseResult = await db.runAsync(
@@ -407,18 +104,27 @@ export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) 
           workout_id, 
           exercise_name, 
           exercise_order,
+          suggested_sets,
+          suggested_reps,
+          recommended_weight,
+          muscle_group,
+          secondary_muscle_group,
           created_at
-        ) VALUES (?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           workoutId,
           exercise.name,
-          i, // Using array index as order
+          i,
+          exercise.suggested_sets || 3,
+          exercise.suggested_reps || 10,
+          exercise.recommended_weight || null,
+          exercise.muscle_group || null,
+          exercise.secondary_muscle_group || null,
           new Date().toISOString()
         ]
       );
       const workoutExerciseId = exerciseResult.lastInsertRowId;
 
-      // 3. Insert sets with all metrics
       const data = exerciseData[exercise.name];
       if (data && data.sets) {
         for (let setIdx = 0; setIdx < data.sets.length; setIdx++) {
@@ -435,7 +141,7 @@ export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) 
               setIdx + 1,
               JSON.stringify({
                 ...setData,
-                activeMetrics: data.activeMetrics // Store which metrics were active
+                activeMetrics: data.activeMetrics
               }),
               new Date().toISOString()
             ]
@@ -443,11 +149,31 @@ export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) 
         }
       }
     }
-
-    console.log("Workout saved successfully!");
     return true;
   } catch (error) {
     console.error("Error saving workout:", error);
+    throw error;
+  }
+}
+
+export async function deleteAllData() {
+  try {
+    // Reset app state first
+    await db.execAsync(`
+      UPDATE app_state 
+      SET currently_exercising = 0, 
+          active_workout_id = NULL, 
+          current_exercise_id = NULL
+    `);
+
+    // Delete data from all tables in correct order (respecting foreign keys)
+    await db.execAsync(`DELETE FROM users_workout_sets`);
+    await db.execAsync(`DELETE FROM users_workout_exercises`);
+    await db.execAsync(`DELETE FROM users_workouts`);
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting all data:", error);
     throw error;
   }
 }

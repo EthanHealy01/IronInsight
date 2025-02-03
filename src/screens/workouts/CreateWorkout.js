@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useColorScheme, View } from 'react-native';
+import { useColorScheme, View, TouchableOpacity, Text } from 'react-native';
 import { styles } from '../../theme/styles';
 import SelectExerciseList from "./SelectExerciseList";
 import SelectedExercisesManager from "./SelectedExercisesManager";
 import { WorkoutViewSwitch } from "../../components/WorkoutViewSwitch";
 import { DEFAULT_METRICS } from '../../database/workout_metrics';
+import { insertWorkoutIntoDB } from '../../database/db';
 
-export default function CreateWorkout({ route }) {
+export default function CreateWorkout({ route, navigation }) {
   const globalStyles = styles();
   const [selectedExercises, setSelectedExercises] = useState([]);
   // Lift the exerciseData state to persist between views.
@@ -60,14 +61,29 @@ export default function CreateWorkout({ route }) {
   // (This function is a sample. You can call it when the user clicks “Save”)
   const saveWorkoutToSQLite = async () => {
     try {
-      // Example: Save the workout name and date in your workouts table.
-      // Then, for each exercise, save its sets/metrics in workout_sets (or workout_exercises)
-      // Adjust the SQL queries and table names/columns as needed.
-      // (See the sample code further below.)
+      if (!workoutName) {
+        alert('Please enter a workout name');
+        return;
+      }
+      if (selectedExercises.length === 0) {
+        alert('Please add at least one exercise');
+        return;
+      }
+
       await insertWorkoutIntoDB(workoutName, selectedExercises, exerciseData);
       console.log("Workout saved successfully!");
+      
+      // Set this workout as active in app_state
+      await db.runAsync(`
+        UPDATE app_state 
+        SET currently_exercising = 1, 
+            active_workout_id = (SELECT workout_id FROM users_workouts WHERE name = ? ORDER BY created_at DESC LIMIT 1)
+      `, [workoutName]);
+
+      navigation.navigate('ActiveWorkout');
     } catch (err) {
       console.error("Error saving workout:", err);
+      alert('Failed to save workout');
     }
   };
 
@@ -94,7 +110,6 @@ export default function CreateWorkout({ route }) {
           onDeleteExercise={handleDeleteExercise}
         />
       )}
-      {/* For example, add a “Save” button that calls saveWorkoutToSQLite */}
     </View>
   );
 }
