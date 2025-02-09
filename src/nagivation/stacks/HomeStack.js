@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
+import { useFocusEffect } from "@react-navigation/native";
 import * as SQLite from 'expo-sqlite';
 import NotificationsScreen from "../../screens/home/NotificationsScreen";
 import HomeScreen from "../../screens/home/HomeScreen";
@@ -7,20 +8,23 @@ import ActiveWorkoutHome from "../../screens/home/ActiveWorkoutHome";
 import ExploreExercises from "../../screens/exercises/ExploreExercises";
 import WorkoutHome from "../../screens/workouts/WorkoutsHome";
 import CreateWorkout from "../../screens/workouts/CreateWorkout";
+import { getExercisingState } from '../../database/functions/workouts';
 
 const Stack = createStackNavigator();
-const db = SQLite.openDatabaseAsync("iron_insight");
 
 export default function HomeStack() {
   const [isExercising, setIsExercising] = useState(false);
 
-  useEffect(() => {
-    async function checkWorkoutStatus() {
-      const status = (await db).getAllAsync('SELECT currently_exercising FROM app_state LIMIT 1');
-      setIsExercising(!!status[0]?.currently_exercising);
-    }
-    checkWorkoutStatus();
-  }, []);
+  // Remove the SQLite direct import and initialization
+  useFocusEffect(
+    React.useCallback(() => {
+      async function checkWorkoutStatus() {
+        const { isExercising } = await getExercisingState();
+        setIsExercising(isExercising);
+      }
+      checkWorkoutStatus();
+    }, [])
+  );
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "none" }}>

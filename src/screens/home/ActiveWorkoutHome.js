@@ -103,7 +103,7 @@ export default function ActiveWorkoutHome({ navigation }) {
     console.log("First workout row:", firstWorkout);
   
     // 2) Same pattern for exercises
-    const exercisesResult = await db.getAllAsync(
+    const exercisesResult = (await db).getAllAsync(
       "SELECT * FROM users_workout_exercises WHERE workout_id = ?",
       [workoutId]
     );
@@ -113,7 +113,7 @@ export default function ActiveWorkoutHome({ navigation }) {
     console.log("Exercises rows:", exercisesRows);
   
     // 3) Check app state
-    const appStateResult = await db.getAllAsync("SELECT * FROM app_state");
+    const appStateResult = (await db).getAllAsync("SELECT * FROM app_state");
     console.log("App State query result:", appStateResult);
     if (!appStateResult || !Array.isArray(appStateResult.rows)) return;
     console.log("App State rows:", appStateResult.rows);

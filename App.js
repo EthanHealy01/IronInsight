@@ -1,12 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createTables, initDB } from './src/database/db';
 import BottomTabNavigator from './src/nagivation/BottomTabNavigator';
-import { SafeAreaView, StatusBar, useColorScheme, View } from 'react-native';
+import { SafeAreaView, StatusBar, useColorScheme, View, Text } from 'react-native';
 import { styles } from './src/theme/styles';
 import { SheetProvider } from 'react-native-actions-sheet';
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';  // Fixed import
+import { runMigrations } from './src/database/migrations';
 
 const RootWrapper = ({ children }) => {
   const currentStyles = styles();
@@ -29,20 +30,27 @@ const RootWrapper = ({ children }) => {
 };
 
 export default function App() {
+  const [dbReady, setDbReady] = useState(false);
+
   useEffect(() => {
     (async () => {
       await initDB();
+      setDbReady(true);
     })();
   }, []);
 
   return (
     <NavigationContainer>
-      <RootWrapper>
-      <SheetProvider>
-      <BottomTabNavigator />
-      </SheetProvider>
-      </RootWrapper>
+      {!dbReady ? (
+        <Text>Loading...</Text>
+      ) : (
+        <RootWrapper>
+          <SheetProvider>
+            <BottomTabNavigator />
+          </SheetProvider>
+        </RootWrapper>
+      )}
     </NavigationContainer>
-
   );
 }
+

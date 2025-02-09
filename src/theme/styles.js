@@ -327,5 +327,9 @@ export const styles = () => {
             fontSize: 16,
             fontWeight: '600',
         },  
+        workoutCard: {
+            backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
+            borderRadius: 10
+        }
     };
 };

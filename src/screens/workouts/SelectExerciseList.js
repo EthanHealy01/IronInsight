@@ -250,7 +250,7 @@ const SelectExerciseList = ({ onSelect, selectedExercises, onViewChange }) => {
       />
 
       {/* Muscle Group Filters */}
-      <ScrollView horizontal style={{ marginBottom: 10, height: 40 }}>
+      <ScrollView horizontal style={{ marginBottom: 10, height: 40 }} contentContainerStyle={{paddingBottom:40}}>
         {muscleGroups.map((muscle) => (
           <TouchableOpacity
             key={muscle}
@@ -281,6 +281,7 @@ const SelectExerciseList = ({ onSelect, selectedExercises, onViewChange }) => {
         initialNumToRender={5}
         maxToRenderPerBatch={5}
         windowSize={5}
+        contentContainerStyle={{ paddingBottom: 80 }} // Add padding at the bottom
       />
       </SafeAreaView>
   );

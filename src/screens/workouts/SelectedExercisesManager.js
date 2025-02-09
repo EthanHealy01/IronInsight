@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   useColorScheme,
   Dimensions,
+  Alert,
 } from "react-native";
 import { styles } from "../../theme/styles";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
@@ -27,7 +28,7 @@ import { AddMetricModal } from "../../components/AddMetricModal";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, { useAnimatedStyle } from "react-native-reanimated";
 import { SaveWorkoutModal } from '../../components/SaveWorkoutModal';
-import { insertWorkoutIntoDB } from '../../database/db';
+import { insertWorkoutIntoDB } from '../../database/functions/workouts';
 
 const RIGHT_ACTION_WIDTH = 75;
 

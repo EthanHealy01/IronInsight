@@ -18,16 +18,17 @@ import * as SQLite from "expo-sqlite";
 // If you have a single global DB instance from your db.js:
 import { 
   createWorkoutSession,
-  deleteAllData,     // or any other function you might need
-  // etc.
-} from '../../database/db';
+  setExercisingState
+} from "../../database/functions/workouts"
+import { getWorkoutTemplates } from '../../database/functions/templates';
+import { db } from "../../database/db"
 
 export default function WorkoutHome() {
 
-  const db = SQLite.openDatabaseAsync("iron_insight");
 
 
-  const [templates, setTemplates] = useState([]);       // was "workouts"
+
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -46,19 +47,13 @@ export default function WorkoutHome() {
    */
   const loadTemplates = async () => {
     try {
-      const rows = (await db).getAllAsync(`
-        SELECT 
-          t.*,
-          COUNT(e.id) AS exercise_count
-        FROM workout_templates t
-        LEFT JOIN template_exercises e 
-          ON t.id = e.workout_template_id
-        GROUP BY t.id
-        ORDER BY t.created_at DESC
-      `);
-
-      // rows will be an array of objects: [ { id, name, created_at, exercise_count, ... }, ... ]
-      console.log("Here:",rows);
+      if (!db) {
+        console.log("Database not ready yet");
+        return;
+      }
+      const result = await getWorkoutTemplates();
+      console.log("Workout data:", result);
+      setTemplates(result);
       setLoading(false);
     } catch (error) {
       console.error("Error loading workout templates:", error);
@@ -66,15 +61,19 @@ export default function WorkoutHome() {
     }
   };
 
-  // On mount, load the templates
+  // Add useEffect to check db readiness
   useEffect(() => {
-    loadTemplates();
-  }, []);
+    if (db) {
+      loadTemplates();
+    }
+  }, [db]);
 
-  // Refresh when the screen comes into focus
+  // Keep the useFocusEffect for refreshing
   useFocusEffect(
     React.useCallback(() => {
-      loadTemplates();
+      if (db) {
+        loadTemplates();
+      }
     }, [])
   );
 
@@ -85,18 +84,12 @@ export default function WorkoutHome() {
    */
   const handleStartWorkout = async (template) => {
     try {
-      // Example: create a new session for the user (user_id=1?).
-      // sessionDate could be new Date().toISOString() or "YYYY-MM-DD"
-      const sessionDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-      const sessionId = await createWorkoutSession(template.id, 1, sessionDate);
-
+      await setExercisingState(true, template.id);
       setIsModalVisible(false);
-
-      // Navigate to an "ActiveWorkout" screen if you have one
-      // passing sessionId so it knows which session to load
-      navigation.navigate('ActiveWorkout', { sessionId });
+      navigation.navigate('Home', { screen: 'HomeMain' });
     } catch (error) {
-      console.error('Error starting workout session:', error);
+      console.error('Error starting workout:', error);
+      Alert.alert('Error', 'Failed to start workout');
     }
   };
 
@@ -105,12 +98,12 @@ export default function WorkoutHome() {
    */
   const handleDeleteTemplate = async (template) => {
     try {
-      await db.runAsync(
+      (await db).runAsync(
         'DELETE FROM workout_templates WHERE id = ?', 
         [template.id]
       );
       setIsModalVisible(false);
-      loadTemplates(); // Refresh the list
+      loadTemplates();
     } catch (error) {
       console.error('Error deleting template:', error);
     }
@@ -119,51 +112,71 @@ export default function WorkoutHome() {
   /**
    * Render each template card
    */
-  const renderTemplateCard = (template) => (
-    <TouchableOpacity
-      key={template.id}
-      style={[
-        globalStyles.workoutCard,
-        {
-          marginBottom: 15,
-          padding: 20,
-          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
-          width: '100%',
-        }
-      ]}
-      onPress={() => {
-        setSelectedTemplate(template);
-        setIsModalVisible(true);
-      }}
-    >
-      <View style={globalStyles.flexRowBetween}>
-        <View>
-          <Text
-            style={[
-              globalStyles.fontWeightBold,
-              globalStyles.fontSizeLarge,
-              { color: isDark ? '#FFFFFF' : '#000000' }
-            ]}
-          >
-            {template.name}
-          </Text>
-          <Text
-            style={[
-              globalStyles.fontSizeSmall,
-              { color: isDark ? '#999999' : '#666666', marginTop: 5 }
-            ]}
-          >
-            {template.exercise_count} {template.exercise_count === 1 ? 'exercise' : 'exercises'}
-          </Text>
-        </View>
-        <FontAwesomeIcon
-          icon={faChevronRight}
-          size={20}
-          color={isDark ? '#FFFFFF' : '#000000'}
-        />
-      </View>
-    </TouchableOpacity>
-  );
+  const renderTemplateCard = (template) => {
+      // Parse and flatten all muscle groups from the concatenated string
+      const allMuscles = template.all_muscle_groups
+        ? template.all_muscle_groups
+            .split('],[')
+            .map(group => group.replace(/[\[\]"]/g, '').split(','))
+            .flat()
+        : [];
+      
+      // Remove duplicates
+      const uniqueMuscles = [...new Set(allMuscles)];
+  
+      return (
+        <TouchableOpacity
+          key={template.id}
+          style={[
+            globalStyles.workoutCard,
+            {
+              marginBottom: 15,
+              padding: 20,
+              width: '100%',
+            }
+          ]}
+          onPress={() => {
+            setSelectedTemplate(template);
+            setIsModalVisible(true);
+          }}
+        >
+          <View style={globalStyles.flexRowBetween}>
+            <View>
+              <Text
+                style={[
+                  globalStyles.fontWeightBold,
+                  globalStyles.fontSizeLarge,
+                ]}
+              >
+                {template.name}
+              </Text>
+              <Text
+                style={[
+                  globalStyles.fontSizeSmall,
+                  { marginTop: 5 }
+                ]}
+              >
+                {template.exercise_count} {template.exercise_count === 1 ? 'exercise' : 'exercises'}
+              </Text>
+              <View style={[globalStyles.flexRow, { flexWrap: 'wrap', marginTop: 10, gap: 5 }]}>
+                {uniqueMuscles.map((muscle, index) => (
+                  <View key={index} style={globalStyles.pill}>
+                    <Text style={{ color:'#FFFFFF', fontSize:10, fontWeight:"bold"}}>
+                      {muscle}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+            <FontAwesomeIcon
+              icon={faChevronRight}
+              size={20}
+              color={isDark ? '#FFFFFF' : '#000000'}
+            />
+          </View>
+        </TouchableOpacity>
+      );
+    };
 
   return (
     <View style={[globalStyles.container]}>
@@ -172,7 +185,6 @@ export default function WorkoutHome() {
           style={[
             globalStyles.fontWeightBold,
             globalStyles.fontSizeLarge,
-            { color: isDark ? '#FFFFFF' : '#000000' }
           ]}
         >
           Your Workout Templates

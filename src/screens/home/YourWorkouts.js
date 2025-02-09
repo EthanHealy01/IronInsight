@@ -9,6 +9,7 @@ import {
   globalStylesheet,
   useColorScheme,
   ImageBackground,
+  ScrollView,
 } from "react-native";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import {
@@ -20,9 +21,10 @@ import {
 import { styles } from "../../theme/styles";
 import { useNavigation } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/native";
-
-// Change the database initialization
-const db = SQLite.openDatabaseAsync("iron_insight");
+import { getWorkoutTemplates } from '../../database/functions/templates';
+import { setActiveWorkout } from "../../database/functions/workouts";
+import { setExercisingState } from '../../database/functions/workouts';
+import { db } from "../../database/db"; // Import the global db instance
 
 export default function YourWorkouts() {
   const [workoutsData, setworkoutsData] = useState([]);
@@ -33,79 +35,106 @@ export default function YourWorkouts() {
 
   const loadWorkouts = async () => {
     try {
-      const rows = (await db).getAllAsync(`
-        SELECT 
-          w.*,
-          COUNT(DISTINCT we.workout_exercise_id) as exercise_count
-        FROM users_workouts w
-        LEFT JOIN users_workout_exercises we ON w.workout_id = we.workout_id
-        GROUP BY w.workout_id
-        ORDER BY w.created_at DESC
-        LIMIT 5
-      `);
-      setworkoutsData(rows);
+      // Wait for db to be ready
+      if (!db) {
+        console.log("Database not ready yet");
+        return;
+      }
+      const result = await getWorkoutTemplates();
+      console.log("Workout data:", result);
+      setworkoutsData(result);
       setLoading(false);
     } catch (error) {
-      console.error("Error loading workouts:", error);
+      console.error("Error loading workout templates:", error);
       setLoading(false);
     }
   };
 
+  // Add useEffect to check db readiness
+  useEffect(() => {
+    if (db) {
+      loadWorkouts();
+    }
+  }, [db]);
+
+  // Keep the useFocusEffect for refreshing
   useFocusEffect(
     React.useCallback(() => {
-      setLoading(true);
-      loadWorkouts();
+      if (db) {
+        setLoading(true);
+        loadWorkouts();
+      }
     }, [])
   );
 
-  const renderworkoutItem = ({ item }) => (
-    <TouchableOpacity 
-      style={[
-        globalStyles.workoutCard,
-        { 
-          width: Dimensions.get('window').width * 0.7,
-          marginRight: 10,
-          padding: 15,
-          backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
-        }
-      ]}
-      onPress={async () => {
-        try {
-          // Set this workout as active
-          (await db).runAsync(`
-            UPDATE app_state 
-            SET currently_exercising = 1, 
-                active_workout_id = ?,
-                current_exercise_id = NULL
-          `, [item.workout_id]);
-          
-          // Force parent HomeScreen to re-render by triggering a focus event
-          navigation.navigate('Home');
-        } catch (error) {
-          console.error("Error starting workout:", error);
-          alert('Failed to start workout');
-        }
-      }}
-    >
-      <Text 
-        style={[
-          globalStyles.workoutTitle,
-          { color: isDark ? '#FFFFFF' : '#000000' }
-        ]} 
-        numberOfLines={1}
-      >
-        {item.name || "Unnamed Workout"}
-      </Text>
-      <Text 
-        style={[
-          globalStyles.fontSizeSmall,
-          { color: isDark ? '#999999' : '#666666', marginTop: 5 }
-        ]}
-      >
-        {item.exercise_count} {item.exercise_count === 1 ? 'exercise' : 'exercises'}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderworkoutItem = ({ item }) => {
+      // Parse and flatten all muscle groups from the concatenated string
+      const allMuscles = item.all_muscle_groups
+        ? item.all_muscle_groups
+            .split('],[')
+            .map(group => group.replace(/[\[\]"]/g, '').split(','))
+            .flat()
+        : [];
+      
+      // Remove duplicates
+      const uniqueMuscles = [...new Set(allMuscles)];
+  
+      return (
+        <TouchableOpacity 
+          style={[
+            globalStyles.workoutCard,
+            { 
+              width: Dimensions.get('window').width * 0.7,
+              marginRight: 10,
+              padding: 15,
+              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+            }
+          ]}
+          onPress={async () => {
+            try {
+              await setExercisingState(true, item.id);
+              navigation.navigate('HomeMain', {screen: "Home"});
+            } catch (error) {
+              console.error("Error starting workout:", error);
+              alert('Failed to start workout');
+            }
+          }}
+        >
+          <Text 
+            style={[
+              globalStyles.workoutTitle,
+              { color: isDark ? '#FFFFFF' : '#000000' }
+            ]} 
+            numberOfLines={1}
+          >
+            {item.name || "Unnamed Workout"}
+          </Text>
+          <Text 
+            style={[
+              globalStyles.fontSizeSmall,
+              { color: isDark ? '#999999' : '#666666', marginTop: 5 }
+            ]}
+          >
+            {item.exercise_count} {item.exercise_count === 1 ? 'exercise' : 'exercises'}
+          </Text>
+          <ScrollView
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={{ marginTop: 10 }}
+          >
+            <View style={[globalStyles.flexRow, { gap: 5 }]}>
+              {uniqueMuscles.map((muscle, index) => (
+                <View key={index} style={globalStyles.pill}>
+                  <Text style={{color:'#FFFFFF', fontSize:12, fontWeight:"bold"}}>
+                    {muscle}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        </TouchableOpacity>
+      );
+    };
 
   return (
     <View style={{ marginTop: 20 }}>
@@ -290,7 +319,7 @@ export default function YourWorkouts() {
       ) : (
         <FlatList
           data={workoutsData}
-          keyExtractor={(item) => String(item.workout_id)}
+          keyExtractor={(item) => String(item.id)}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingVertical: 10 }}
