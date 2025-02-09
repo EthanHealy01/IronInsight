@@ -109,12 +109,14 @@ const SelectedExercisesManager = ({
 
   const handleSaveWorkout = async (name, orderedExercises) => {
     try {
+      // Store everything in DB (ONE row per exercise in users_workout_sets)
       await insertWorkoutIntoDB(name, orderedExercises, exerciseData);
       setShowSaveModal(false);
-      // Add navigation or success feedback here
+
+      Alert.alert("Success", "Workout saved successfully!");
     } catch (error) {
-      console.error('Error saving workout:', error);
-      Alert.alert('Error', 'Failed to save workout. Please try again.');
+      console.error("Error saving workout:", error);
+      Alert.alert("Error", "Failed to save workout. Please try again.");
     }
   };
 
@@ -493,7 +495,17 @@ const ExerciseItem = ({
                         metric.type === "number" ? "numeric" : "default"
                       }
                       onChangeText={(text) => {
-                        handleSetValueChange(idx, metric.id, text);
+                        let numericValue = 0;
+                    
+                        // If your metric.id is "weight", parse as float
+                        // Otherwise parse as int for reps/time
+                        if (metric.id === "weight") {
+                          numericValue = parseFloat(text) || 0;
+                        } else {
+                          numericValue = parseInt(text, 10) || 0;
+                        }
+                    
+                        handleSetValueChange(idx, metric.id, numericValue);
                       }}
                     />
                   ))}

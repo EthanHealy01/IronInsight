@@ -9,14 +9,14 @@ import WorkoutHome from "../../screens/workouts/WorkoutsHome";
 import CreateWorkout from "../../screens/workouts/CreateWorkout";
 
 const Stack = createStackNavigator();
-const db = SQLite.openDatabaseSync("iron_insight");
+const db = SQLite.openDatabaseAsync("iron_insight");
 
 export default function HomeStack() {
   const [isExercising, setIsExercising] = useState(false);
 
   useEffect(() => {
     async function checkWorkoutStatus() {
-      const status = await db.getAllAsync('SELECT currently_exercising FROM app_state LIMIT 1');
+      const status = (await db).getAllAsync('SELECT currently_exercising FROM app_state LIMIT 1');
       setIsExercising(!!status[0]?.currently_exercising);
     }
     checkWorkoutStatus();

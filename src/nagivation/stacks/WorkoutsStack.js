@@ -7,7 +7,7 @@ import CreateWorkout from '../../screens/workouts/CreateWorkout';
 
 const Stack = createStackNavigator();
 
-export default function workoutsStack() {
+export default function WorkoutsStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "none" }}>
       <Stack.Screen 

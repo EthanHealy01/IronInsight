@@ -1,177 +1,333 @@
 import * as SQLite from 'expo-sqlite';
 
-let db = SQLite.openDatabaseSync("iron_insight");
+// We'll store the open DB instance here
+export let db;
 
+// 1) Create all tables if they don't exist yet
 async function createTablesIfNotExist() {
+  // -------------------------------------------------------------------------
+  // WORKOUT TEMPLATES
+  // -------------------------------------------------------------------------
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workouts (
-      workout_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER,
-      name TEXT NOT NULL,
-      created_at TEXT,
-      updated_at TEXT
+    CREATE TABLE IF NOT EXISTS workout_templates (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id     INTEGER,
+      name        TEXT NOT NULL,
+      created_at  TEXT,
+      updated_at  TEXT
     );
   `);
 
+  // -------------------------------------------------------------------------
+  // TEMPLATE_EXERCISES
+  // Now includes columns for `sets` and `metrics`.
+  // -------------------------------------------------------------------------
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workout_exercises (
-      workout_exercise_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_id INTEGER,
-      exercise_name TEXT NOT NULL,
-      exercise_order INTEGER NOT NULL,
-      suggested_sets INTEGER DEFAULT 3,
-      suggested_reps INTEGER DEFAULT 10,
-      recommended_weight REAL,
-      muscle_group TEXT,
-      secondary_muscle_group TEXT,
-      created_at TEXT,
-      FOREIGN KEY (workout_id) REFERENCES users_workouts(workout_id) ON DELETE CASCADE
+    CREATE TABLE IF NOT EXISTS template_exercises (
+      id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_template_id     INTEGER NOT NULL,
+      exercise_name           TEXT NOT NULL,
+      secondary_muscle_groups TEXT,
+      sets                    INTEGER DEFAULT 3,
+      metrics                 TEXT,              -- JSON array of metric objects
+      created_at              TEXT,
+      updated_at              TEXT,
+      FOREIGN KEY (workout_template_id)
+        REFERENCES workout_templates (id)
+        ON DELETE CASCADE
     );
   `);
 
+  // -------------------------------------------------------------------------
+  // WORKOUT_SESSIONS
+  // -------------------------------------------------------------------------
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS users_workout_sets (
-      set_id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_exercise_id INTEGER,
-      set_number INTEGER NOT NULL,
-      metrics_data TEXT NOT NULL,
-      created_at TEXT,
-      FOREIGN KEY (workout_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id) ON DELETE CASCADE
+    CREATE TABLE IF NOT EXISTS workout_sessions (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_template_id  INTEGER NOT NULL,
+      user_id              INTEGER,
+      session_date         TEXT NOT NULL,
+      created_at           TEXT,
+      updated_at           TEXT,
+      FOREIGN KEY (workout_template_id)
+        REFERENCES workout_templates (id)
+        ON DELETE CASCADE
     );
   `);
 
+  // -------------------------------------------------------------------------
+  // SESSION_EXERCISES
+  // -------------------------------------------------------------------------
   await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS app_state (
-      currently_exercising BOOLEAN DEFAULT 0,
-      active_workout_id INTEGER,
-      current_exercise_id INTEGER,
-      FOREIGN KEY (active_workout_id) REFERENCES users_workouts(workout_id),
-      FOREIGN KEY (current_exercise_id) REFERENCES users_workout_exercises(workout_exercise_id)
+    CREATE TABLE IF NOT EXISTS session_exercises (
+      id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_session_id      INTEGER NOT NULL,
+      exercise_name           TEXT NOT NULL,
+      secondary_muscle_groups TEXT,
+      created_at              TEXT,
+      updated_at              TEXT,
+      FOREIGN KEY (workout_session_id)
+        REFERENCES workout_sessions (id)
+        ON DELETE CASCADE
     );
   `);
 
+  // -------------------------------------------------------------------------
+  // SESSION_SETS
+  // -------------------------------------------------------------------------
   await db.execAsync(`
-    INSERT OR IGNORE INTO app_state (currently_exercising, active_workout_id, current_exercise_id)
-    SELECT 0, NULL, NULL
-    WHERE NOT EXISTS (SELECT 1 FROM app_state);
+    CREATE TABLE IF NOT EXISTS session_sets (
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_exercise_id   INTEGER NOT NULL,
+      reps_or_time          INTEGER,
+      weight                REAL,
+      custom_metrics        TEXT,
+      created_at            TEXT,
+      updated_at            TEXT,
+      FOREIGN KEY (session_exercise_id)
+        REFERENCES session_exercises (id)
+        ON DELETE CASCADE
+    );
+  `);
+
+  // -------------------------------------------------------------------------
+  // SESSION_MUSCLE_VOLUME
+  // -------------------------------------------------------------------------
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS session_muscle_volume (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      workout_session_id  INTEGER NOT NULL,
+      muscle_name         TEXT NOT NULL,
+      total_sets          INTEGER NOT NULL,
+      created_at          TEXT,
+      updated_at          TEXT,
+      FOREIGN KEY (workout_session_id)
+        REFERENCES workout_sessions (id)
+        ON DELETE CASCADE
+    );
   `);
 }
 
+// 2) Initialize the DB
 export async function initDB() {
   try {
-    db = await SQLite.openDatabaseAsync('iron_insight');
+    db = await SQLite.openDatabaseAsync('iron_insight'); 
     await db.execAsync("PRAGMA foreign_keys = ON;");
     await createTablesIfNotExist();
+    console.log("DB initialized successfully with new schema.");
   } catch (err) {
     console.error("initDB error:", err);
   }
 }
 
-export async function debugWorkoutData(workoutId) {
-  console.log("\n=== Debugging Workout Data ===");
-  
-  // Check workout
-  const workout = await db.getAllAsync(
-    "SELECT * FROM users_workouts WHERE workout_id = ?",
-    [workoutId]
-  );
-  console.log("Workout:", workout);
+// -----------------------------------------------------------------------------
+// EXAMPLE UTILITY FUNCTIONS
+// -----------------------------------------------------------------------------
 
-  // Check exercises
-  const exercises = await db.getAllAsync(
-    "SELECT * FROM users_workout_exercises WHERE workout_id = ?",
-    [workoutId]
-  );
-  console.log("Exercises:", exercises);
-
-  // Check app state
-  const appState = await db.getAllAsync("SELECT * FROM app_state");
-  console.log("App State:", appState);
-}
-
-export async function insertWorkoutIntoDB(workoutName, exercises, exerciseData) {
+/**
+ * Create a new workout template.
+ * @param {string} templateName 
+ * @param {Array}  exercises - array of { 
+ *   name: string, 
+ *   secondaryMuscles: string[], 
+ *   sets: number,
+ *   metrics: arrayOfObjects
+ * }
+ */
+export async function createWorkoutTemplate(templateName, exercises) {
   try {
-    const workoutResult = await db.runAsync(
-      `INSERT INTO users_workouts (name, created_at) VALUES (?, ?)`,
-      [workoutName, new Date().toISOString()]
+    // 1) Insert the template row
+    const result = await db.runAsync(
+      `INSERT INTO workout_templates (name, created_at)
+       VALUES (?, ?)`,
+      [templateName, new Date().toISOString()]
     );
-    const workoutId = workoutResult.lastInsertRowId;
+    const templateId = result.lastInsertRowId;
 
+    // 2) Insert each exercise, including sets + metrics
     for (let i = 0; i < exercises.length; i++) {
-      const exercise = exercises[i];
-      const exerciseResult = await db.runAsync(
-        `INSERT INTO users_workout_exercises (
-          workout_id, 
-          exercise_name, 
-          exercise_order,
-          suggested_sets,
-          suggested_reps,
-          recommended_weight,
-          muscle_group,
-          secondary_muscle_group,
+      const ex = exercises[i];
+      await db.runAsync(`
+        INSERT INTO template_exercises (
+          workout_template_id,
+          exercise_name,
+          secondary_muscle_groups,
+          sets,
+          metrics,
           created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          workoutId,
-          exercise.name,
-          i,
-          exercise.suggested_sets || 3,
-          exercise.suggested_reps || 10,
-          exercise.recommended_weight || null,
-          exercise.muscle_group || null,
-          exercise.secondary_muscle_group || null,
-          new Date().toISOString()
-        ]
-      );
-      const workoutExerciseId = exerciseResult.lastInsertRowId;
-
-      const data = exerciseData[exercise.name];
-      if (data && data.sets) {
-        for (let setIdx = 0; setIdx < data.sets.length; setIdx++) {
-          const setData = data.sets[setIdx];
-          await db.runAsync(
-            `INSERT INTO users_workout_sets (
-              workout_exercise_id,
-              set_number,
-              metrics_data,
-              created_at
-            ) VALUES (?, ?, ?, ?)`,
-            [
-              workoutExerciseId,
-              setIdx + 1,
-              JSON.stringify({
-                ...setData,
-                activeMetrics: data.activeMetrics
-              }),
-              new Date().toISOString()
-            ]
-          );
-        }
-      }
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+      [
+        templateId,
+        ex.name,
+        JSON.stringify(ex.secondaryMuscles || []), // array of muscle groups
+        ex.sets || 3,                              // integer (default 3)
+        JSON.stringify(ex.metrics || []),          // array of metric objects
+        new Date().toISOString()
+      ]);
     }
-    return true;
+
+    console.log(`Created template #${templateId} "${templateName}" with ${exercises.length} exercises.`);
+    return templateId;
   } catch (error) {
-    console.error("Error saving workout:", error);
+    console.error("Error creating workout template:", error);
     throw error;
   }
 }
 
-export async function deleteAllData() {
+/**
+ * Create a workout session from a template
+ */
+export async function createWorkoutSession(templateId, userId, sessionDate) {
   try {
-    // Reset app state first
-    await db.execAsync(`
-      UPDATE app_state 
-      SET currently_exercising = 0, 
-          active_workout_id = NULL, 
-          current_exercise_id = NULL
-    `);
+    const result = await db.runAsync(
+      `INSERT INTO workout_sessions (
+        workout_template_id, user_id, session_date, created_at
+      ) VALUES (?, ?, ?, ?)`,
+      [templateId, userId, sessionDate, new Date().toISOString()]
+    );
+    const sessionId = result.lastInsertRowId;
+    console.log("Created session with ID:", sessionId);
 
-    // Delete data from all tables in correct order (respecting foreign keys)
-    await db.execAsync(`DELETE FROM users_workout_sets`);
-    await db.execAsync(`DELETE FROM users_workout_exercises`);
-    await db.execAsync(`DELETE FROM users_workouts`);
+    // Copy the exercises from template_exercises -> session_exercises
+    const templateExRows = await db.getAllAsync(
+      `SELECT * FROM template_exercises WHERE workout_template_id = ?`,
+      [templateId]
+    );
+
+    for (const row of templateExRows) {
+      await db.runAsync(`
+        INSERT INTO session_exercises (
+          workout_session_id, exercise_name, secondary_muscle_groups, created_at
+        ) VALUES (?, ?, ?, ?)
+      `,
+      [
+        sessionId,
+        row.exercise_name,
+        row.secondary_muscle_groups,
+        new Date().toISOString()
+      ]);
+    }
+
+    return sessionId;
+  } catch (error) {
+    console.error("Error creating workout session:", error);
+    throw error;
+  }
+}
+
+/**
+ * Insert a set for a given session exercise
+ */
+export async function insertSetForExercise(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
+  try {
+    const result = await db.runAsync(
+      `INSERT INTO session_sets (
+        session_exercise_id, reps_or_time, weight, custom_metrics, created_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        sessionExerciseId,
+        repsOrTime,
+        weight,
+        JSON.stringify(customMetrics),
+        new Date().toISOString()
+      ]
+    );
+    console.log("Inserted set with ID:", result.lastInsertRowId);
+    return true;
+  } catch (error) {
+    console.error("Error inserting set:", error);
+    throw error;
+  }
+}
+
+/**
+ * Summarize volume across muscle groups for a session
+ */
+export async function finalizeSessionVolume(sessionId) {
+  try {
+    // 1. Get all session_exercises + their muscle groups
+    const exercises = await db.getAllAsync(
+      `SELECT id, secondary_muscle_groups
+       FROM session_exercises
+       WHERE workout_session_id = ?`,
+      [sessionId]
+    );
+
+    const muscleGroupTotals = {};
+
+    // 2. For each exercise, count sets in session_sets and add them
+    for (const ex of exercises) {
+      const setsResult = await db.getAllAsync(`
+        SELECT COUNT(*) as setCount
+        FROM session_sets
+        WHERE session_exercise_id = ?
+      `, [ex.id]);
+      const setCount = setsResult?.[0]?.setCount || 0;
+
+      let muscleGroups = [];
+      try {
+        muscleGroups = JSON.parse(ex.secondary_muscle_groups || "[]");
+      } catch (err) {
+        console.warn("Invalid JSON for muscle groups:", ex.secondary_muscle_groups);
+      }
+
+      muscleGroups.forEach(muscle => {
+        muscleGroupTotals[muscle] = (muscleGroupTotals[muscle] || 0) + setCount;
+      });
+    }
+
+    // 3. Insert into session_muscle_volume
+    for (const muscleName of Object.keys(muscleGroupTotals)) {
+      const totalSets = muscleGroupTotals[muscleName];
+      await db.runAsync(`
+        INSERT INTO session_muscle_volume (
+          workout_session_id, muscle_name, total_sets, created_at
+        ) VALUES (?, ?, ?, ?)
+      `,
+      [sessionId, muscleName, totalSets, new Date().toISOString()]);
+    }
 
     return true;
+  } catch (error) {
+    console.error("Error finalizing session volume:", error);
+    throw error;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// DEBUG / UTILITY
+// -----------------------------------------------------------------------------
+
+export async function debugAllData() {
+  console.log("=== Debug: workout_templates ===");
+  console.log(await db.getAllAsync(`SELECT * FROM workout_templates`));
+
+  console.log("=== Debug: template_exercises ===");
+  console.log(await db.getAllAsync(`SELECT * FROM template_exercises`));
+
+  console.log("=== Debug: workout_sessions ===");
+  console.log(await db.getAllAsync(`SELECT * FROM workout_sessions`));
+
+  console.log("=== Debug: session_exercises ===");
+  console.log(await db.getAllAsync(`SELECT * FROM session_exercises`));
+
+  console.log("=== Debug: session_sets ===");
+  console.log(await db.getAllAsync(`SELECT * FROM session_sets`));
+
+  console.log("=== Debug: session_muscle_volume ===");
+  console.log(await db.getAllAsync(`SELECT * FROM session_muscle_volume`));
+}
+
+export async function deleteAllData() {
+  try {
+    await db.execAsync(`DELETE FROM session_muscle_volume`);
+    await db.execAsync(`DELETE FROM session_sets`);
+    await db.execAsync(`DELETE FROM session_exercises`);
+    await db.execAsync(`DELETE FROM workout_sessions`);
+    await db.execAsync(`DELETE FROM template_exercises`);
+    await db.execAsync(`DELETE FROM workout_templates`);
+    console.log("All data deleted successfully");
   } catch (error) {
     console.error("Error deleting all data:", error);
     throw error;

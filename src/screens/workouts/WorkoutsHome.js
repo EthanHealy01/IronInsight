@@ -1,106 +1,127 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Alert } from 'react-native';
-import { View, Text, ScrollView, TouchableOpacity, useColorScheme, Dimensions } from 'react-native';
-import * as SQLite from 'expo-sqlite';
+import { 
+  Modal, 
+  Alert, 
+  View, 
+  Text, 
+  ScrollView, 
+  TouchableOpacity, 
+  useColorScheme, 
+  Dimensions 
+} from 'react-native';
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faChevronRight, faPlus } from "@fortawesome/free-solid-svg-icons";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import * as SQLite from "expo-sqlite";
 
-const db = SQLite.openDatabaseSync("iron_insight");
+// If you have a single global DB instance from your db.js:
+import { 
+  createWorkoutSession,
+  deleteAllData,     // or any other function you might need
+  // etc.
+} from '../../database/db';
 
 export default function WorkoutHome() {
-  const [workouts, setWorkouts] = useState([]);
+
+  const db = SQLite.openDatabaseAsync("iron_insight");
+
+
+  const [templates, setTemplates] = useState([]);       // was "workouts"
   const [loading, setLoading] = useState(true);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';
   const navigation = useNavigation();
-  const [selectedWorkout, setSelectedWorkout] = useState(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isCurrentlyExercising, setIsCurrentlyExercising] = useState(false);
 
-  const loadWorkouts = async () => {
+  /**
+   * Load the workout templates from the "new" schema:
+   *   SELECT t.*, COUNT(e.id) as exercise_count
+   *   FROM workout_templates t
+   *   LEFT JOIN template_exercises e ON t.id = e.workout_template_id
+   *   GROUP BY t.id
+   *   ORDER BY t.created_at DESC
+   */
+  const loadTemplates = async () => {
     try {
-      const rows = await db.getAllAsync(`
+      const rows = (await db).getAllAsync(`
         SELECT 
-          w.*,
-          COUNT(DISTINCT we.workout_exercise_id) as exercise_count
-        FROM users_workouts w
-        LEFT JOIN users_workout_exercises we ON w.workout_id = we.workout_id
-        GROUP BY w.workout_id
-        ORDER BY w.created_at DESC
+          t.*,
+          COUNT(e.id) AS exercise_count
+        FROM workout_templates t
+        LEFT JOIN template_exercises e 
+          ON t.id = e.workout_template_id
+        GROUP BY t.id
+        ORDER BY t.created_at DESC
       `);
-      setWorkouts(rows);
+
+      // rows will be an array of objects: [ { id, name, created_at, exercise_count, ... }, ... ]
+      console.log("Here:",rows);
       setLoading(false);
     } catch (error) {
-      console.error("Error loading workouts:", error);
+      console.error("Error loading workout templates:", error);
       setLoading(false);
     }
   };
 
-  async function checkExerciseStatus() {
-    const status = await db.getAllAsync('SELECT currently_exercising FROM app_state LIMIT 1');
-    setIsCurrentlyExercising(!!status[0]?.currently_exercising);
-  }
-
-  // Initial load
+  // On mount, load the templates
   useEffect(() => {
-    async function initialize() {
-      await checkExerciseStatus();
-      await loadWorkouts();
-    }
-    initialize();
+    loadTemplates();
   }, []);
 
-  // Refresh data when screen comes into focus
+  // Refresh when the screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      async function refreshData() {
-        await checkExerciseStatus();
-        await loadWorkouts();
-      }
-      refreshData();
+      loadTemplates();
     }, [])
   );
-  
-  const handleStartWorkout = async (workout) => {
+
+  /**
+   * Start a workout session from the selected template
+   * (assuming you want to create a new session).
+   * If you do not want to create a session, you can remove or replace this.
+   */
+  const handleStartWorkout = async (template) => {
     try {
-      // Get the first exercise of the workout
-      const [firstExercise] = await db.getAllAsync(`
-        SELECT workout_exercise_id 
-        FROM users_workout_exercises 
-        WHERE workout_id = ? 
-        ORDER BY workout_exercise_id 
-        LIMIT 1
-      `, [workout.workout_id]);
-  
+      // Example: create a new session for the user (user_id=1?).
+      // sessionDate could be new Date().toISOString() or "YYYY-MM-DD"
+      const sessionDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+      const sessionId = await createWorkoutSession(template.id, 1, sessionDate);
+
+      setIsModalVisible(false);
+
+      // Navigate to an "ActiveWorkout" screen if you have one
+      // passing sessionId so it knows which session to load
+      navigation.navigate('ActiveWorkout', { sessionId });
+    } catch (error) {
+      console.error('Error starting workout session:', error);
+    }
+  };
+
+  /**
+   * Delete the entire template from DB
+   */
+  const handleDeleteTemplate = async (template) => {
+    try {
       await db.runAsync(
-        `UPDATE app_state 
-         SET currently_exercising = 1, 
-             active_workout_id = ?, 
-             current_exercise_id = ?`,
-        [workout.workout_id, firstExercise?.workout_exercise_id]
+        'DELETE FROM workout_templates WHERE id = ?', 
+        [template.id]
       );
       setIsModalVisible(false);
-      navigation.navigate('ActiveWorkout', { workoutId: workout.workout_id });
+      loadTemplates(); // Refresh the list
     } catch (error) {
-      console.error('Error starting workout:', error);
+      console.error('Error deleting template:', error);
     }
   };
 
-  const handleDeleteWorkout = async (workout) => {
-    try {
-      await db.runAsync('DELETE FROM users_workouts WHERE workout_id = ?', [workout.workout_id]);
-      setIsModalVisible(false);
-      loadWorkouts(); // Refresh the list
-    } catch (error) {
-      console.error('Error deleting workout:', error);
-    }
-  };
-
-  const renderWorkoutCard = (workout) => (
+  /**
+   * Render each template card
+   */
+  const renderTemplateCard = (template) => (
     <TouchableOpacity
-      key={workout.workout_id}
+      key={template.id}
       style={[
         globalStyles.workoutCard,
         {
@@ -108,19 +129,11 @@ export default function WorkoutHome() {
           padding: 20,
           backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
           width: '100%',
-          opacity: isCurrentlyExercising ? 0.5 : 1,
         }
       ]}
       onPress={() => {
-        if (!isCurrentlyExercising) {
-          setSelectedWorkout(workout);
-          setIsModalVisible(true);
-        } else {
-          Alert.alert(
-            'Workout in Progress',
-            'Please finish or cancel your current workout before starting a new one.'
-          );
-        }
+        setSelectedTemplate(template);
+        setIsModalVisible(true);
       }}
     >
       <View style={globalStyles.flexRowBetween}>
@@ -132,7 +145,7 @@ export default function WorkoutHome() {
               { color: isDark ? '#FFFFFF' : '#000000' }
             ]}
           >
-            {workout.name}
+            {template.name}
           </Text>
           <Text
             style={[
@@ -140,7 +153,7 @@ export default function WorkoutHome() {
               { color: isDark ? '#999999' : '#666666', marginTop: 5 }
             ]}
           >
-            {workout.exercise_count} {workout.exercise_count === 1 ? 'exercise' : 'exercises'}
+            {template.exercise_count} {template.exercise_count === 1 ? 'exercise' : 'exercises'}
           </Text>
         </View>
         <FontAwesomeIcon
@@ -162,14 +175,14 @@ export default function WorkoutHome() {
             { color: isDark ? '#FFFFFF' : '#000000' }
           ]}
         >
-          Your Workouts
+          Your Workout Templates
         </Text>
         <TouchableOpacity
           style={globalStyles.flexRow}
           onPress={() => navigation.navigate("CreateWorkout")}
         >
           <Text style={[globalStyles.fontWeightSemiBold, { marginRight: 5 }]}>
-            Create workout
+            Create Workout
           </Text>
           <FontAwesomeIcon
             icon={faPlus}
@@ -181,17 +194,18 @@ export default function WorkoutHome() {
 
       {loading ? (
         <Text style={[globalStyles.fontSizeRegular, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-          Loading workouts...
+          Loading...
         </Text>
-      ) : workouts.length === 0 ? (
+      ) : templates.length === 0 ? (
         <Text style={[globalStyles.fontSizeRegular, { color: isDark ? '#FFFFFF' : '#000000' }]}>
-          No workouts created yet.
+          No workout templates created yet.
         </Text>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
-          {workouts.map(renderWorkoutCard)}
+          {templates.map(renderTemplateCard)}
         </ScrollView>
       )}
+
       <Modal
         visible={isModalVisible}
         transparent={true}
@@ -216,41 +230,47 @@ export default function WorkoutHome() {
               globalStyles.modalTitle,
               { color: isDark ? '#FFFFFF' : '#000000', marginBottom: 15 }
             ]}>
-              {selectedWorkout?.name}
+              {selectedTemplate?.name}
             </Text>
             
+            {/* Start Workout => create a session */}
             <TouchableOpacity
               style={[globalStyles.primaryButton, { marginBottom: 10 }]}
-              onPress={() => handleStartWorkout(selectedWorkout)}
+              onPress={() => handleStartWorkout(selectedTemplate)}
             >
               <Text style={globalStyles.buttonText}>Start Workout</Text>
             </TouchableOpacity>
 
+            {/* Edit => navigate to an edit screen, if you have one */}
             <TouchableOpacity
               style={[globalStyles.secondaryButton, { marginBottom: 10 }]}
-              onPress={() => navigation.navigate('EditWorkout', { workout: selectedWorkout })}
+              onPress={() => {
+                setIsModalVisible(false);
+                navigation.navigate('EditWorkout', { template: selectedTemplate });
+              }}
             >
-              <Text style={globalStyles.buttonText}>Edit Workout</Text>
+              <Text style={globalStyles.buttonText}>Edit Template</Text>
             </TouchableOpacity>
 
+            {/* Delete => remove from DB */}
             <TouchableOpacity
               style={[globalStyles.dangerButton, { marginBottom: 10 }]}
               onPress={() => {
                 Alert.alert(
-                  'Delete Workout',
-                  'Are you sure you want to delete this workout?',
+                  'Delete Workout Template',
+                  'Are you sure you want to delete this template?',
                   [
                     { text: 'Cancel', style: 'cancel' },
                     { 
                       text: 'Delete',
                       style: 'destructive',
-                      onPress: () => handleDeleteWorkout(selectedWorkout)
+                      onPress: () => handleDeleteTemplate(selectedTemplate)
                     }
                   ]
                 );
               }}
             >
-              <Text style={globalStyles.buttonText}>Delete Workout</Text>
+              <Text style={globalStyles.buttonText}>Delete Template</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

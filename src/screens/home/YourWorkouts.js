@@ -22,7 +22,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useFocusEffect } from "@react-navigation/native";
 
 // Change the database initialization
-const db = SQLite.openDatabaseSync("iron_insight");
+const db = SQLite.openDatabaseAsync("iron_insight");
 
 export default function YourWorkouts() {
   const [workoutsData, setworkoutsData] = useState([]);
@@ -33,7 +33,7 @@ export default function YourWorkouts() {
 
   const loadWorkouts = async () => {
     try {
-      const rows = await db.getAllAsync(`
+      const rows = (await db).getAllAsync(`
         SELECT 
           w.*,
           COUNT(DISTINCT we.workout_exercise_id) as exercise_count
@@ -72,7 +72,7 @@ export default function YourWorkouts() {
       onPress={async () => {
         try {
           // Set this workout as active
-          await db.runAsync(`
+          (await db).runAsync(`
             UPDATE app_state 
             SET currently_exercising = 1, 
                 active_workout_id = ?,
@@ -94,7 +94,7 @@ export default function YourWorkouts() {
         ]} 
         numberOfLines={1}
       >
-        {item.name}
+        {item.name || "Unnamed Workout"}
       </Text>
       <Text 
         style={[
@@ -193,7 +193,7 @@ export default function YourWorkouts() {
                 <Text
                   style={[
                     { marginVertical: 10, paddingLeft: 10 },
-                    globalStyles.fontSizeLarge,
+                    globalStyles.fontSizeMedium,
                     globalStyles.fontWeightBold,
                     { color: "white" },
                   ]}

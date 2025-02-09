@@ -20,7 +20,6 @@ export const SaveWorkoutModal = ({
   exercises, 
   workoutName,
   onSave,
-  exerciseData 
 }) => {
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';

@@ -6,7 +6,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faCheck, faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { DEFAULT_METRICS } from '../../database/workout_metrics';
 
-const db = SQLite.openDatabaseSync("iron_insight");
+const db = SQLite.openDatabaseAsync("iron_insight");
 
 export default function ActiveWorkoutHome({ navigation }) {
   const [workoutData, setWorkoutData] = useState(null);
@@ -20,7 +20,7 @@ export default function ActiveWorkoutHome({ navigation }) {
     async function loadActiveWorkout() {
       try {
         // Load the active workout state.
-        const [activeState] = await db.getAllAsync(`
+        const [activeState] = (await db).getAllAsync(`
           SELECT 
             w.*,
             a.active_workout_id,
@@ -40,46 +40,29 @@ export default function ActiveWorkoutHome({ navigation }) {
 
         if (activeState) {
           // Load all exercises for this workout along with extra info:
-          const exercises = await db.getAllAsync(`
+          const exercises = (await db).getAllSync(`
             SELECT 
               we.*,
-              we.workout_exercise_id,
-              we.exercise_name as name,
-              we.suggested_sets,
-              we.suggested_reps,
-              we.recommended_weight,
-              we.muscle_group,
-              we.secondary_muscle_group,
-              (
-                SELECT json_group_array(metrics_data)
-                FROM (
-                  SELECT metrics_data
-                  FROM users_workout_sets ws 
-                  WHERE ws.workout_exercise_id = we.workout_exercise_id
-                  ORDER BY ws.set_number ASC
-                )
-              ) as last_workout_sets,
-              (
-                SELECT json_extract(metrics_data, '$.activeMetrics')
-                FROM users_workout_sets ws 
-                WHERE ws.workout_exercise_id = we.workout_exercise_id
-                ORDER BY ws.set_number ASC
-                LIMIT 1
-              ) as active_metrics,
-              (we.workout_exercise_id = ? ) as is_current
+              ws.metrics as last_workout_metrics,
+              ws.sets as last_workout_sets,
+              (we.workout_exercise_id = ?) as is_current
             FROM users_workout_exercises we
+            LEFT JOIN users_workout_sets ws ON ws.workout_exercise_id = we.workout_exercise_id
             WHERE we.workout_id = ?
             ORDER BY we.exercise_order
           `, [activeState.current_exercise_id, activeState.active_workout_id]);
 
-          // For each exercise, initialize a local currentSets array (one per suggested set).
-          const exercisesWithCurrent = exercises.map(ex => ({
-            ...ex,
-            currentSets: Array.from({ length: ex.suggested_sets }, () => ({}))
-          }));
 
-          console.log('Exercises with current:', exercisesWithCurrent[0].currentSets);
-          // console.log('Active State:', activeState);
+          // For each exercise, initialize a local currentSets array (one per suggested set).
+          const exercisesWithCurrent = exercises.map(ex => {
+            // You might do additional parsing of ex.last_workout_metrics here if needed
+            return {
+              ...ex,
+              // Create an array of currentSets, one entry per suggested set:
+              currentSets: Array.from({ length: ex.suggested_sets }, () => ({})),
+            };
+          });
+
           setWorkoutData({ ...activeState, exercises: exercisesWithCurrent });
         }
         setLoading(false);
@@ -89,7 +72,53 @@ export default function ActiveWorkoutHome({ navigation }) {
       }
     }
     loadActiveWorkout();
+    debugWorkoutData()
   }, []);
+
+  async function debugWorkoutData(workoutId) {
+    console.log("\n=== Debugging Workout Data ===");
+  
+    // 1) Fetch workout
+    const workoutResult = (await db).getAllAsync(
+      "SELECT * FROM users_workouts",
+    );
+    console.log("Workout query result:", workoutResult);
+  
+
+    // Suppose workoutResult is something like { rows: [...] }
+    if (!workoutResult || !Array.isArray(workoutResult.rows)) {
+      console.log("No results or unexpected format");
+      return;
+    }
+  
+    // Now destructure from workoutResult.rows
+    const workoutRows = workoutResult.rows;
+    console.log("Workout rows:", workoutRows);
+    if (workoutRows.length === 0) {
+      console.log("No workouts found with that ID");
+      return;
+    }
+    // Grab the first row if you need it
+    const [firstWorkout] = workoutRows;
+    console.log("First workout row:", firstWorkout);
+  
+    // 2) Same pattern for exercises
+    const exercisesResult = await db.getAllAsync(
+      "SELECT * FROM users_workout_exercises WHERE workout_id = ?",
+      [workoutId]
+    );
+    console.log("Exercises query result:", exercisesResult);
+    if (!exercisesResult || !Array.isArray(exercisesResult.rows)) return;
+    const exercisesRows = exercisesResult.rows;
+    console.log("Exercises rows:", exercisesRows);
+  
+    // 3) Check app state
+    const appStateResult = await db.getAllAsync("SELECT * FROM app_state");
+    console.log("App State query result:", appStateResult);
+    if (!appStateResult || !Array.isArray(appStateResult.rows)) return;
+    console.log("App State rows:", appStateResult.rows);
+  }
+  
 
   // Expand the first exercise by default when workoutData loads.
   const [expandedExercise, setExpandedExercise] = useState(null);
@@ -110,8 +139,8 @@ export default function ActiveWorkoutHome({ navigation }) {
     workoutData.exercises.forEach(ex => {
       totalSets += ex.currentSets.length;
       ex.currentSets.forEach(set => {
-        // A set is complete if either 'reps' or 'weight' is filled out.
-        if ((set.reps && set.reps.trim() !== "") || (set.weight && set.weight.trim() !== "")) {
+        // Check if any metric field is filled in this set:
+        if (Object.values(set).some(value => value && value.trim() !== "")) {
           completedSets++;
         }
       });
@@ -177,65 +206,111 @@ export default function ActiveWorkoutHome({ navigation }) {
   // Finish the entire workout: update the database and notify the user.
   const handleFinishWorkout = async () => {
     try {
-      await db.runAsync(`
+      if (workoutData?.exercises) {
+        for (const exercise of workoutData.exercises) {
+          // If your DB table expects a field for metrics, store the sets & metrics here:
+          // We assume the "active_metrics" column might exist or you might
+          // just store metrics in users_workout_sets. Adjust as needed.
+
+          // In your original code you had JSON with { sets, activeMetrics }.
+          // Let's build that here based on the local data:
+          const metricsJSON = JSON.stringify({
+            sets: exercise.currentSets,
+            // If we want to store which metrics apply, we can parse exercise.active_metrics if it exists:
+            activeMetrics: (() => {
+              if (exercise.active_metrics) {
+                // Parse the original string
+                const parsedData = JSON.parse(exercise.active_metrics);
+                return parsedData.activeMetrics || DEFAULT_METRICS;
+              }
+              return DEFAULT_METRICS;
+            })()
+          });
+
+          (await db).runAsync(`
+            UPDATE users_workout_sets
+            SET metrics = ?, sets = ?
+            WHERE workout_exercise_id = ?
+          `, [metricsJSON, exercise.currentSets.length, exercise.workout_exercise_id]);
+        }
+      }
+
+      (await db).runAsync(`
         UPDATE app_state 
         SET currently_exercising = 0, 
             active_workout_id = NULL,
             current_exercise_id = NULL
       `);
+
       Alert.alert("Workout Finished", "Your workout has been completed.");
       if (navigation) {
-        navigation.navigate('Home'); // Adjust to your appropriate screen.
+        navigation.navigate('Home');
       }
     } catch (error) {
       console.error("Error finishing workout:", error);
     }
   };
 
-  // Render an exercise card with a separate header and content area.
+  // Renders a single exercise card
   const renderExerciseCard = (exercise, index) => {
     const isExpanded = expandedExercise === exercise.workout_exercise_id;
     const isCompleted = completedExercises.has(exercise.workout_exercise_id);
 
-    // Parse last workout sets (each element is a JSON string).
-    const rawLastSets = exercise.last_workout_sets ? JSON.parse(exercise.last_workout_sets) : [];
-    const lastSets = rawLastSets.map(setStr => {
+    // --- FIX: Parse the exercise.active_metrics properly ---
+    let parsedData = {};
+    if (exercise.active_metrics) {
       try {
-        return JSON.parse(setStr);
-      } catch (e) {
-        return {};
+        parsedData = JSON.parse(exercise.active_metrics);
+      } catch (err) {
+        console.error("Invalid JSON in active_metrics:", err);
       }
-    });
-
-    // Derive active metrics from the database if available; otherwise, use DEFAULT_METRICS.
-    const activeMetrics = exercise.active_metrics ? JSON.parse(exercise.active_metrics) : DEFAULT_METRICS;
-
-    // Instead of using the last workout set count and DB completed_sets,
-    // recalc the number of completed sets based on the currentSets.
-    const completedCurrent = exercise.currentSets.filter(
-      set => (set.reps && set.reps.trim() !== "") || (set.weight && set.weight.trim() !== "")
-    ).length;
-    const remainingSets = exercise.suggested_sets - completedCurrent;
+    }
+    // If there's an array of metrics inside parsedData.activeMetrics, use it:
+    const activeMetrics = parsedData.activeMetrics || DEFAULT_METRICS;
+    // ------------------------------------------------------
 
     return (
-      <View key={exercise.workout_exercise_id} style={[globalStyles.card, { marginBottom: 10, paddingVertical: 10 }]}>
-        {/* Header (touchable) */}
-        <TouchableOpacity onPress={() => toggleExpansion(exercise.workout_exercise_id)} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+      <View
+        key={exercise.workout_exercise_id}
+        style={[globalStyles.card, { marginBottom: 10, paddingVertical: 10 }]}
+      >
+        <TouchableOpacity
+          onPress={() => toggleExpansion(exercise.workout_exercise_id)}
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             {exercise.image_url && (
-              <Image 
-                source={{ uri: exercise.image_url }} 
+              <Image
+                source={{ uri: exercise.image_url }}
                 style={{ width: 50, height: 50, marginRight: 10 }}
               />
             )}
             <View>
-              <Text style={[globalStyles.fontWeightBold, { color: isDark ? '#FFFFFF' : '#000000' }]}>{exercise.name}</Text>
+              <Text
+                style={[
+                  globalStyles.fontWeightBold,
+                  { color: isDark ? '#FFFFFF' : '#000000' }
+                ]}
+              >
+                {exercise.name}
+              </Text>
               <View style={{ flexDirection: 'row' }}>
                 {exercise.muscle_group && (
-                  <Text style={[globalStyles.tag, { marginRight: 5, backgroundColor: '#FFB74D' }]}>{exercise.muscle_group}</Text>
+                  <Text
+                    style={[
+                      globalStyles.tag,
+                      { marginRight: 5, backgroundColor: '#FFB74D' }
+                    ]}
+                  >
+                    {exercise.muscle_group}
+                  </Text>
                 )}
                 {exercise.secondary_muscle_group && (
-                  <Text style={[globalStyles.tag, { backgroundColor: '#FFB74D' }]}>{exercise.secondary_muscle_group}</Text>
+                  <Text
+                    style={[globalStyles.tag, { backgroundColor: '#FFB74D' }]}
+                  >
+                    {exercise.secondary_muscle_group}
+                  </Text>
                 )}
               </View>
             </View>
@@ -243,68 +318,48 @@ export default function ActiveWorkoutHome({ navigation }) {
           {isCompleted ? (
             <FontAwesomeIcon icon={faCheck} size={20} color="#4CAF50" />
           ) : (
-            <FontAwesomeIcon 
-              icon={faChevronRight} 
-              size={20} 
-              color={isDark ? '#FFFFFF' : '#000000'} 
+            <FontAwesomeIcon
+              icon={faChevronRight}
+              size={20}
+              color={isDark ? '#FFFFFF' : '#000000'}
               style={{ transform: [{ rotate: isExpanded ? '90deg' : '0deg' }] }}
             />
           )}
         </TouchableOpacity>
 
-        {/* Expanded content (sets and inputs) */}
         {isExpanded && (
           <View style={{ marginTop: 15 }}>
-            <Text style={[globalStyles.fontSizeSmall, { color: isDark ? '#999999' : '#666666', marginBottom: 10 }]}>
-              {remainingSets} sets left – {remainingSets * 3} minutes
-            </Text>
-            <View style={{ marginBottom: 10 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                <Text style={{ width: 50 }}>Set</Text>
+            {/* Render the sets for this exercise */}
+            {exercise.currentSets.map((setData, setIndex) => (
+              <View key={setIndex} style={{ flexDirection: 'row', marginBottom: 10 }}>
+                <Text style={{ width: 50 }}>{setIndex + 1}</Text>
+                {/* Render an input for each metric in activeMetrics */}
                 {activeMetrics.map(metric => (
-                  <Text 
-                    key={metric.id} 
-                    style={[
-                      { flex: 1, textAlign: 'center' },
-                      { color: isDark ? '#FFFFFF' : '#000000' }
-                    ]}
-                  >
-                    {metric.name}
-                  </Text>
+                  <TextInput
+                    key={metric.id}
+                    style={[globalStyles.input, { flex: 1, marginHorizontal: 5 }]}
+                    value={setData[metric.id] || ""}
+                    keyboardType="numeric"
+                    placeholder={metric.label}
+                    onChangeText={(text) =>
+                      handleSetChange(exercise.workout_exercise_id, setIndex, metric.id, text)
+                    }
+                  />
                 ))}
               </View>
+            ))}
 
-              {Array.from({ length: exercise.suggested_sets }).map((_, setIndex) => (
-                <View key={setIndex} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <Text style={{ width: 50 }}>{setIndex + 1}</Text>
-                  
-                  {activeMetrics.map(metric => (
-                    <TextInput
-                      key={metric.id}
-                      style={[globalStyles.input, { flex: 1, marginHorizontal: 5 }]}
-                      value={exercise.currentSets[setIndex]?.[metric.id] || ""}
-                      placeholder={
-                        (lastSets[setIndex] && lastSets[setIndex][metric.id] !== undefined)
-                          ? lastSets[setIndex][metric.id].toString()
-                          : ""
-                      }
-                      keyboardType="numeric"
-                      onChangeText={(text) =>
-                        handleSetChange(exercise.workout_exercise_id, setIndex, metric.id, text)
-                      }
-                    />
-                  ))}
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity 
-              style={[globalStyles.button, { backgroundColor: '#FFB74D' }]}
+            {/* Button to add extra sets */}
+            <TouchableOpacity
+              style={[globalStyles.button, { marginVertical: 10 }]}
               onPress={() => handleAddSet(exercise.workout_exercise_id)}
             >
-              <Text style={globalStyles.buttonText}>+ Add an extra set</Text>
+              <Text style={globalStyles.buttonText}>+ Add Set</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[globalStyles.button, { marginTop: 10, backgroundColor: '#4CAF50' }]}
+
+            {/* Button to mark exercise complete */}
+            <TouchableOpacity
+              style={[globalStyles.button, { backgroundColor: '#4CAF50' }]}
               onPress={() => handleFinishExercise(exercise, index)}
             >
               <Text style={globalStyles.buttonText}>Finish Exercise</Text>
@@ -325,39 +380,37 @@ export default function ActiveWorkoutHome({ navigation }) {
 
   return (
     <ScrollView style={globalStyles.container}>
-      {/* Top (black) card showing overall workout progress and sets left */}
+      {/* Workout Progress Card */}
       <View style={[globalStyles.card, { marginBottom: 10, backgroundColor: '#000000', paddingVertical: 10 }]}>
         <Text style={[globalStyles.fontSizeLarge, { color: '#FFFFFF', marginBottom: 5 }]}>
           Your Current Workout Progress
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {/* A simple text placeholder instead of an actual ring graphic,
+              or you could implement a circular progress ring here */}
           <View style={[globalStyles.progressRing, { borderColor: '#FFB74D' }]}>
-            <Text style={[globalStyles.fontSizeLarge, { color: '#FFFFFF' }]}>{Math.round(progress)}%</Text>
+            <Text style={[globalStyles.fontSizeLarge, { color: '#FFFFFF' }]}>
+              {Math.round(progress)}%
+            </Text>
           </View>
           <Text style={[globalStyles.fontSizeRegular, { color: '#FFFFFF', marginLeft: 10 }]}>
-            {
-              // Calculate sets left for the first exercise that is not yet complete
-              (() => {
-                const incomplete = workoutData?.exercises?.find(e => {
-                  const completed = e.currentSets.filter(
-                    set => (set.reps && set.reps.trim() !== "") || (set.weight && set.weight.trim() !== "")
-                  ).length;
-                  return completed < e.suggested_sets;
-                });
-                if (incomplete) {
-                  const completed = incomplete.currentSets.filter(
-                    set => (set.reps && set.reps.trim() !== "") || (set.weight && set.weight.trim() !== "")
-                  ).length;
-                  return incomplete.suggested_sets - completed;
-                }
-                return 0;
-              })()
-            } sets left
+            {workoutData?.exercises.reduce((acc, e) => {
+              // how many sets left? naive approach if a "filled set" means metrics are typed
+              const filledSets = e.currentSets.filter(s =>
+                Object.values(s).some(v => v && v.trim() !== "")
+              ).length;
+              return acc + (e.currentSets.length - filledSets);
+            }, 0)}{" "}
+            sets left
           </Text>
         </View>
       </View>
-      {workoutData?.exercises?.map((exercise, index) => renderExerciseCard(exercise, index))}
-      <TouchableOpacity 
+
+      {/* List all exercises */}
+      {workoutData?.exercises.map((exercise, index) => renderExerciseCard(exercise, index))}
+
+      {/* Finish Workout button */}
+      <TouchableOpacity
         style={[globalStyles.button, { backgroundColor: '#4CAF50', marginVertical: 20 }]}
         onPress={handleFinishWorkout}
       >

@@ -37,7 +37,7 @@ export default function CreateWorkout({ route, navigation }) {
           setExerciseData(prev => ({
             ...prev,
             [exercise.name]: {
-              sets: [{ reps: "12", weight: "58", type: "reps" }],
+              sets: [{ reps: null, weight: null, type: "reps" }],
               activeMetrics: DEFAULT_METRICS
             }
           }));
@@ -58,34 +58,7 @@ export default function CreateWorkout({ route, navigation }) {
     setExerciseData(updatedData);
   };
 
-  // (This function is a sample. You can call it when the user clicks “Save”)
-  const saveWorkoutToSQLite = async () => {
-    try {
-      if (!workoutName) {
-        alert('Please enter a workout name');
-        return;
-      }
-      if (selectedExercises.length === 0) {
-        alert('Please add at least one exercise');
-        return;
-      }
-
-      await insertWorkoutIntoDB(workoutName, selectedExercises, exerciseData);
-      console.log("Workout saved successfully!");
-      
-      // Set this workout as active in app_state
-      await db.runAsync(`
-        UPDATE app_state 
-        SET currently_exercising = 1, 
-            active_workout_id = (SELECT workout_id FROM users_workouts WHERE name = ? ORDER BY created_at DESC LIMIT 1)
-      `, [workoutName]);
-
-      navigation.navigate('ActiveWorkout');
-    } catch (err) {
-      console.error("Error saving workout:", err);
-      alert('Failed to save workout');
-    }
-  };
+  
 
   return (
     <View style={globalStyles.container}>

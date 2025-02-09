@@ -11,7 +11,7 @@ import * as SQLite from 'expo-sqlite';
 export default function HomeScreen() {
   const globalStyles = styles();
   const [hasActiveWorkout, setHasActiveWorkout] = useState(false);
-  const db = SQLite.openDatabaseSync("iron_insight");
+  const db = SQLite.openDatabaseAsync("iron_insight");
 
   useEffect(() => {
     checkActiveWorkout();
@@ -19,7 +19,7 @@ export default function HomeScreen() {
 
   const checkActiveWorkout = async () => {
     try {
-      const [state] = await db.getAllAsync(`
+      const [state] = (await db).getAllAsync(`
         SELECT currently_exercising 
         FROM app_state 
         WHERE currently_exercising = 1
