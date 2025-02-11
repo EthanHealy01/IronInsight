@@ -140,7 +140,6 @@ export async function initDB() {
     await database.execAsync("PRAGMA foreign_keys = ON;");
     await createTablesIfNotExist(database);
     await runMigrations(database);
-    console.log("DB initialized successfully with schema and migrations.");
     return database;
   } catch (err) {
     console.error("initDB error:", err);

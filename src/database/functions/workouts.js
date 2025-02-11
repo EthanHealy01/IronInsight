@@ -17,7 +17,6 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
     `, [templateId, userId, sessionDate, new Date().toISOString()]);
 
     const sessionId = result.lastInsertRowId;
-    console.log("Created session with ID:", sessionId);
 
     // Copy exercises from template to session
     (await db).runAsync(`
@@ -47,7 +46,6 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
     try {
       // 1. Insert the workout template and its exercises.
       const templateId = await createWorkoutTemplate(templateName, orderedExercises);
-      console.log(`Template ${templateName} created with ID: ${templateId}`);
   
       // 2. Check if any exercise in the template has historical values.
       let hasHistoricalData = false;
@@ -71,7 +69,6 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
       if (hasHistoricalData) {
         // Pass a valid userId if available; here we use `null` as a placeholder.
         const sessionId = await createWorkoutSession(templateId, null, new Date().toISOString());
-        console.log(`Workout session created with ID: ${sessionId} for template ID: ${templateId}`);
   
         // 4. Retrieve the session_exercises that were auto-created from the template.
         const sessionExercises = (await db).getAllAsync(
@@ -93,7 +90,6 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
                 // Decide which value to use for the reps_or_time column.
                 const repsOrTime = (set.reps != null && set.reps !== "") ? set.reps : set.time;
                 await insertSetForExercise(sessEx.id, repsOrTime, set.weight, set.customMetrics || {});
-                console.log(`Inserted set for session exercise ID ${sessEx.id}`);
               }
             }
           }
@@ -124,7 +120,6 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
           new Date().toISOString()
         ]
       );
-      console.log("Inserted set with ID:", result.lastInsertRowId);
       return true;
     } catch (error) {
       console.error("Error inserting set:", error);
@@ -147,14 +142,21 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
 
   export async function getExercisingState() {
     try {
-      const result = (await db).getAllAsync(`
+      const result = await db.getAllAsync(`
         SELECT is_exercising, active_template_id 
         FROM app_state 
         LIMIT 1
       `);
+      
+      // The row exists and has the correct values
+      const row = result?.[0];
+      if (!row) {
+        return { isExercising: false, activeTemplateId: null };
+      }
+
       return {
-        isExercising: result[0]?.is_exercising === 1,
-        activeTemplateId: result[0]?.active_template_id
+        isExercising: Boolean(row.is_exercising), 
+        activeTemplateId: row.active_template_id 
       };
     } catch (error) {
       console.error("Error getting exercising state:", error);

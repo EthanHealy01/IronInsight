@@ -37,11 +37,9 @@ export default function YourWorkouts() {
     try {
       // Wait for db to be ready
       if (!db) {
-        console.log("Database not ready yet");
         return;
       }
       const result = await getWorkoutTemplates();
-      console.log("Workout data:", result);
       setworkoutsData(result);
       setLoading(false);
     } catch (error) {

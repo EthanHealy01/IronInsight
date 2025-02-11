@@ -5,10 +5,12 @@ import { styles } from '../../theme/styles';
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faCheck, faChevronRight } from "@fortawesome/free-solid-svg-icons";
 import { DEFAULT_METRICS } from '../../database/workout_metrics';
+import { useNavigation } from '@react-navigation/native';
+import { db } from '../../database/db';
 
-const db = SQLite.openDatabaseAsync("iron_insight");
+const ActiveWorkoutHome = ({ template_id }) => {  // Change prop name
 
-export default function ActiveWorkoutHome({ navigation }) {
+  const navigation = useNavigation();
   const [workoutData, setWorkoutData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -17,53 +19,39 @@ export default function ActiveWorkoutHome({ navigation }) {
 
   // Load the active workout and its exercises from the database.
   useEffect(() => {
+    console.log("Hit")
+    console.log(template_id)
     async function loadActiveWorkout() {
       try {
-        // Load the active workout state.
-        const [activeState] = (await db).getAllAsync(`
-          SELECT 
-            w.*,
-            a.active_workout_id,
-            a.current_exercise_id,
-            we.workout_exercise_id,
-            we.exercise_name as name,
-            we.suggested_sets,
-            we.suggested_reps,
-            we.recommended_weight,
-            we.muscle_group,
-            we.secondary_muscle_group
-          FROM app_state a
-          JOIN users_workouts w ON w.workout_id = a.active_workout_id
-          LEFT JOIN users_workout_exercises we ON we.workout_exercise_id = a.current_exercise_id
-          WHERE a.currently_exercising = 1
-        `);
+        const database = await db;  
+        const template = await database.getAllAsync(`
+          SELECT * FROM workout_templates 
+          WHERE id = ?
+        `, [template_id]);  
 
-        if (activeState) {
-          // Load all exercises for this workout along with extra info:
-          const exercises = (await db).getAllSync(`
+        console.log("Template ID:", template_id);
+        console.log("Template result:", template);
+
+        if (template?.[0]) {
+          const exercises = await database.getAllAsync(`
             SELECT 
-              we.*,
-              ws.metrics as last_workout_metrics,
-              ws.sets as last_workout_sets,
-              (we.workout_exercise_id = ?) as is_current
-            FROM users_workout_exercises we
-            LEFT JOIN users_workout_sets ws ON ws.workout_exercise_id = we.workout_exercise_id
-            WHERE we.workout_id = ?
-            ORDER BY we.exercise_order
-          `, [activeState.current_exercise_id, activeState.active_workout_id]);
+              te.*,
+              te.exercise_name as name,
+              te.sets as suggested_sets
+            FROM template_exercises te
+            WHERE te.workout_template_id = ?
+            ORDER BY te.id
+          `, [template_id]); 
 
+          const exercisesWithSets = exercises.map(ex => ({
+            ...ex,
+            currentSets: Array.from({ length: ex.sets || 3 }, () => ({})),
+          }));
 
-          // For each exercise, initialize a local currentSets array (one per suggested set).
-          const exercisesWithCurrent = exercises.map(ex => {
-            // You might do additional parsing of ex.last_workout_metrics here if needed
-            return {
-              ...ex,
-              // Create an array of currentSets, one entry per suggested set:
-              currentSets: Array.from({ length: ex.suggested_sets }, () => ({})),
-            };
+          setWorkoutData({ 
+            template: template[0],
+            exercises: exercisesWithSets 
           });
-
-          setWorkoutData({ ...activeState, exercises: exercisesWithCurrent });
         }
         setLoading(false);
       } catch (error) {
@@ -71,54 +59,11 @@ export default function ActiveWorkoutHome({ navigation }) {
         setLoading(false);
       }
     }
-    loadActiveWorkout();
-    debugWorkoutData()
-  }, []);
-
-  async function debugWorkoutData(workoutId) {
-    console.log("\n=== Debugging Workout Data ===");
-  
-    // 1) Fetch workout
-    const workoutResult = (await db).getAllAsync(
-      "SELECT * FROM users_workouts",
-    );
-    console.log("Workout query result:", workoutResult);
-  
-
-    // Suppose workoutResult is something like { rows: [...] }
-    if (!workoutResult || !Array.isArray(workoutResult.rows)) {
-      console.log("No results or unexpected format");
-      return;
+    
+    if (template_id) {
+      loadActiveWorkout();
     }
-  
-    // Now destructure from workoutResult.rows
-    const workoutRows = workoutResult.rows;
-    console.log("Workout rows:", workoutRows);
-    if (workoutRows.length === 0) {
-      console.log("No workouts found with that ID");
-      return;
-    }
-    // Grab the first row if you need it
-    const [firstWorkout] = workoutRows;
-    console.log("First workout row:", firstWorkout);
-  
-    // 2) Same pattern for exercises
-    const exercisesResult = (await db).getAllAsync(
-      "SELECT * FROM users_workout_exercises WHERE workout_id = ?",
-      [workoutId]
-    );
-    console.log("Exercises query result:", exercisesResult);
-    if (!exercisesResult || !Array.isArray(exercisesResult.rows)) return;
-    const exercisesRows = exercisesResult.rows;
-    console.log("Exercises rows:", exercisesRows);
-  
-    // 3) Check app state
-    const appStateResult = (await db).getAllAsync("SELECT * FROM app_state");
-    console.log("App State query result:", appStateResult);
-    if (!appStateResult || !Array.isArray(appStateResult.rows)) return;
-    console.log("App State rows:", appStateResult.rows);
-  }
-  
+  }, [template_id]);
 
   // Expand the first exercise by default when workoutData loads.
   const [expandedExercise, setExpandedExercise] = useState(null);
@@ -192,7 +137,7 @@ export default function ActiveWorkoutHome({ navigation }) {
 
   // Toggle expansion (only when the header is tapped).
   const toggleExpansion = (exerciseId) => {
-    setExpandedExercise(prev => (prev === exerciseId ? null : exerciseId));
+    setExpandedExercise(prev => prev === exerciseId ? null : exerciseId);
   };
 
   // Mark an exercise as finished and, if available, expand the next exercise.
@@ -204,42 +149,66 @@ export default function ActiveWorkoutHome({ navigation }) {
   };
 
   // Finish the entire workout: update the database and notify the user.
+  // Update handleFinishWorkout to use the new schema
   const handleFinishWorkout = async () => {
     try {
       if (workoutData?.exercises) {
+        // Create a new workout session
+        const sessionResult = await (await db).runAsync(`
+          INSERT INTO workout_sessions (
+            workout_template_id,
+            session_date,
+            created_at
+          ) VALUES (?, ?, ?)
+        `, [template_id, new Date().toISOString(), new Date().toISOString()]);
+
+        const sessionId = sessionResult.lastInsertRowId;
+
+        // Create session exercises and their sets
         for (const exercise of workoutData.exercises) {
-          // If your DB table expects a field for metrics, store the sets & metrics here:
-          // We assume the "active_metrics" column might exist or you might
-          // just store metrics in users_workout_sets. Adjust as needed.
+          // Insert session exercise
+          const sessionExResult = await (await db).runAsync(`
+            INSERT INTO session_exercises (
+              workout_session_id,
+              exercise_name,
+              secondary_muscle_groups,
+              created_at
+            ) VALUES (?, ?, ?, ?)
+          `, [
+            sessionId,
+            exercise.exercise_name,
+            exercise.secondary_muscle_groups,
+            new Date().toISOString()
+          ]);
 
-          // In your original code you had JSON with { sets, activeMetrics }.
-          // Let's build that here based on the local data:
-          const metricsJSON = JSON.stringify({
-            sets: exercise.currentSets,
-            // If we want to store which metrics apply, we can parse exercise.active_metrics if it exists:
-            activeMetrics: (() => {
-              if (exercise.active_metrics) {
-                // Parse the original string
-                const parsedData = JSON.parse(exercise.active_metrics);
-                return parsedData.activeMetrics || DEFAULT_METRICS;
-              }
-              return DEFAULT_METRICS;
-            })()
-          });
+          const sessionExId = sessionExResult.lastInsertRowId;
 
-          (await db).runAsync(`
-            UPDATE users_workout_sets
-            SET metrics = ?, sets = ?
-            WHERE workout_exercise_id = ?
-          `, [metricsJSON, exercise.currentSets.length, exercise.workout_exercise_id]);
+          // Insert all sets for this exercise
+          for (const set of exercise.currentSets) {
+            if (Object.keys(set).length > 0) {
+              await (await db).runAsync(`
+                INSERT INTO session_sets (
+                  session_exercise_id,
+                  reps_or_time,
+                  weight,
+                  created_at
+                ) VALUES (?, ?, ?, ?)
+              `, [
+                sessionExId,
+                set.reps || set.time,
+                set.weight,
+                new Date().toISOString()
+              ]);
+            }
+          }
         }
       }
 
-      (await db).runAsync(`
+      // Reset the app state
+      await (await db).runAsync(`
         UPDATE app_state 
-        SET currently_exercising = 0, 
-            active_workout_id = NULL,
-            current_exercise_id = NULL
+        SET is_exercising = 0, 
+            active_template_id = NULL
       `);
 
       Alert.alert("Workout Finished", "Your workout has been completed.");
@@ -419,3 +388,5 @@ export default function ActiveWorkoutHome({ navigation }) {
     </ScrollView>
   );
 }
+
+export default ActiveWorkoutHome;

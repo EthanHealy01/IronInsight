@@ -48,8 +48,6 @@ export async function createWorkoutTemplate(templateName, exercises) {
           new Date().toISOString()
         ]);
       }
-  
-      console.log(`Created template #${templateId} "${templateName}" with ${exercises.length} exercises.`);
       return templateId;
     } catch (error) {
       console.error("Error creating workout template:", error);

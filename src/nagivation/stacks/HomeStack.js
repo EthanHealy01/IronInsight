@@ -14,23 +14,28 @@ const Stack = createStackNavigator();
 
 export default function HomeStack() {
   const [isExercising, setIsExercising] = useState(false);
+  const [activeTemplateId, setActiveTemplateId] = useState(null);
 
-  // Remove the SQLite direct import and initialization
   useFocusEffect(
     React.useCallback(() => {
       async function checkWorkoutStatus() {
-        const { isExercising } = await getExercisingState();
+        const { isExercising, activeTemplateId } = await getExercisingState();
         setIsExercising(isExercising);
+        setActiveTemplateId(activeTemplateId);
       }
       checkWorkoutStatus();
     }, [])
+  );
+
+  const ActiveWorkoutWithProps = () => (
+    <ActiveWorkoutHome template_id={activeTemplateId} />
   );
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "none" }}>
       <Stack.Screen
         name="HomeMain"
-        component={isExercising ? ActiveWorkoutHome : HomeScreen}
+        component={isExercising ? ActiveWorkoutWithProps : HomeScreen}
         options={{ title: "Home" }}
       />
       <Stack.Screen
