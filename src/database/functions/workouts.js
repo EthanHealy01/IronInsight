@@ -1,3 +1,4 @@
+
 import { db } from "../db";
 import { createWorkoutTemplate } from "./templates";
 
@@ -6,20 +7,23 @@ import { createWorkoutTemplate } from "./templates";
  */
 export async function createWorkoutSession(templateId, userId, sessionDate) {
   try {
-    // Insert the workout session
-    const result = (await db).runAsync(`
+    const result = await (await db).runAsync(
+      `
       INSERT INTO workout_sessions (
         workout_template_id, 
         user_id, 
         session_date, 
         created_at
       ) VALUES (?, ?, ?, ?)
-    `, [templateId, userId, sessionDate, new Date().toISOString()]);
+      `,
+      [templateId, userId, sessionDate, new Date().toISOString()]
+    );
 
     const sessionId = result.lastInsertRowId;
 
-    // Copy exercises from template to session
-    (await db).runAsync(`
+    // Copy exercises from template to session_exercises
+    await (await db).runAsync(
+      `
       INSERT INTO session_exercises (
         workout_session_id,
         exercise_name,
@@ -33,7 +37,9 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
         datetime('now')
       FROM template_exercises
       WHERE workout_template_id = ?
-    `, [sessionId, templateId]);
+      `,
+      [sessionId, templateId]
+    );
 
     return sessionId;
   } catch (error) {
@@ -41,91 +47,109 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
     throw error;
   }
 }
-  
-  export async function insertWorkoutIntoDB(templateName, orderedExercises, exerciseData) {
-    try {
-      // 1. Insert the workout template and its exercises.
-      const templateId = await createWorkoutTemplate(templateName, orderedExercises);
-  
-      // 2. Check if any exercise in the template has historical values.
-      let hasHistoricalData = false;
-      for (const exercise of orderedExercises) {
-        const data = exerciseData[exercise.name];
-        if (data && Array.isArray(data.sets)) {
-          // Look for at least one set where the user entered a value.
-          for (const set of data.sets) {
-            if ((set.reps != null && set.reps !== "") ||
-                (set.time != null && set.time !== "") ||
-                (set.weight != null && set.weight !== "")) {
+
+/**
+ * Insert a set for a given session exercise
+ */
+export async function insertSetForExercise(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
+  try {
+    await (await db).runAsync(
+      `INSERT INTO session_sets (
+        session_exercise_id, reps_or_time, weight, custom_metrics, created_at
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [
+        sessionExerciseId,
+        repsOrTime,
+        weight,
+        JSON.stringify(customMetrics),
+        new Date().toISOString()
+      ]
+    );
+    return true;
+  } catch (error) {
+    console.error("Error inserting set:", error);
+    throw error;
+  }
+}
+
+/**
+ * Enhanced "insertWorkoutIntoDB" that checks ANY field in the set
+ * to consider it "historical data".
+ */
+export async function insertWorkoutIntoDB(templateName, orderedExercises, exerciseData) {
+  try {
+    // 1. Insert the workout template
+    const templateId = await createWorkoutTemplate(templateName, orderedExercises);
+
+    // 2. Check if any exercise in the template has "historical" data
+    let hasHistoricalData = false;
+
+    for (const ex of orderedExercises) {
+      const data = exerciseData[ex.name];
+      if (data && Array.isArray(data.sets)) {
+        for (const set of data.sets) {
+          // Check ALL fields, not just reps/time/weight
+          for (const key in set) {
+            const val = set[key];
+            if (val != null && val !== "") {
               hasHistoricalData = true;
               break;
             }
           }
+          if (hasHistoricalData) break;
         }
-        if (hasHistoricalData) break;
       }
-  
-      // 3. If historical data exists, create a new workout session.
-      if (hasHistoricalData) {
-        // Pass a valid userId if available; here we use `null` as a placeholder.
-        const sessionId = await createWorkoutSession(templateId, null, new Date().toISOString());
-  
-        // 4. Retrieve the session_exercises that were auto-created from the template.
-        const sessionExercises = (await db).getAllAsync(
-          `SELECT * FROM session_exercises WHERE workout_session_id = ?`,
-          [sessionId]
-        );
-  
-        // 5. Loop over each session exercise and insert sets if historical data is present.
-        for (const sessEx of sessionExercises) {
-          const exerciseName = sessEx.exercise_name;
-          const data = exerciseData[exerciseName];
-          if (data && Array.isArray(data.sets)) {
-            for (const set of data.sets) {
-              // Only insert a set if at least one field (reps/time or weight) is provided.
-              if (
-                ((set.reps != null && set.reps !== "") || (set.time != null && set.time !== "")) ||
-                (set.weight != null && set.weight !== "")
-              ) {
-                // Decide which value to use for the reps_or_time column.
-                const repsOrTime = (set.reps != null && set.reps !== "") ? set.reps : set.time;
-                await insertSetForExercise(sessEx.id, repsOrTime, set.weight, set.customMetrics || {});
+      if (hasHistoricalData) break;
+    }
+
+    // 3. If there's historical data, create a session + insert sets
+    if (hasHistoricalData) {
+      const sessionId = await createWorkoutSession(
+        templateId,
+        null, // userId
+        new Date().toISOString()
+      );
+
+      // 4. Retrieve the session_exercises
+      const sessionExercises = await (await db).getAllAsync(
+        `SELECT * FROM session_exercises WHERE workout_session_id = ?`,
+        [sessionId]
+      );
+
+      // 5. For each session exercise, insert sets
+      for (const sessEx of sessionExercises) {
+        const exerciseName = sessEx.exercise_name;
+        const data = exerciseData[exerciseName];
+        if (data && Array.isArray(data.sets)) {
+          for (const setObj of data.sets) {
+            // Decide how to store reps/time/weight
+            const repsOrTime = setObj.reps || setObj.time || null;
+            const weight = setObj.weight || null;
+            // Everything else is custom
+            const customMetrics = {};
+
+            for (const key of Object.keys(setObj)) {
+              if (!["reps", "time", "weight"].includes(key)) {
+                customMetrics[key] = setObj[key];
               }
+            }
+
+            // If any field is filled, let's insert it
+            const anyField = Object.values(setObj).some(v => v != null && v !== "");
+            if (anyField) {
+              await insertSetForExercise(sessEx.id, repsOrTime, weight, customMetrics);
             }
           }
         }
       }
-  
-      return templateId;
-    } catch (error) {
-      console.error("insertWorkoutIntoDB error:", error);
-      throw error;
     }
+
+    return templateId;
+  } catch (error) {
+    console.error("insertWorkoutIntoDB error:", error);
+    throw error;
   }
-  
-  /**
-   * Insert a set for a given session exercise
-   */
-  export async function insertSetForExercise(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
-    try {
-      const result = (await db).runAsync(
-        `INSERT INTO session_sets (
-          session_exercise_id, reps_or_time, weight, custom_metrics, created_at
-        ) VALUES (?, ?, ?, ?, ?)`,
-        [
-          sessionExerciseId,
-          repsOrTime,
-          weight,
-          JSON.stringify(customMetrics),
-          new Date().toISOString()
-        ]
-      );
-      return true;
-    } catch (error) {
-      console.error("Error inserting set:", error);
-      throw error;
-    }
-  }
+}
 
   export async function setExercisingState(isExercising, templateId = null) {
     try {
@@ -184,8 +208,8 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
    */
   export async function finalizeSessionVolume(sessionId) {
     try {
-      // 1. Get all session_exercises + their muscle groups
-      const exercises = (await db).getAllAsync(
+      // 1) We MUST await getAllAsync
+      const exercises = await (await db).getAllAsync(
         `SELECT id, secondary_muscle_groups
          FROM session_exercises
          WHERE workout_session_id = ?`,
@@ -194,13 +218,14 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
   
       const muscleGroupTotals = {};
   
-      // 2. For each exercise, count sets in session_sets and add them
+      // 2) Now we can do for-of on the array
       for (const ex of exercises) {
-        const setsResult = (await db).getAllAsync(`
-          SELECT COUNT(*) as setCount
-          FROM session_sets
-          WHERE session_exercise_id = ?
-        `, [ex.id]);
+        const setsResult = await (await db).getAllAsync(
+          `SELECT COUNT(*) as setCount
+           FROM session_sets
+           WHERE session_exercise_id = ?`,
+          [ex.id]
+        );
         const setCount = setsResult?.[0]?.setCount || 0;
   
         let muscleGroups = [];
@@ -210,20 +235,20 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
           console.warn("Invalid JSON for muscle groups:", ex.secondary_muscle_groups);
         }
   
-        muscleGroups.forEach(muscle => {
+        muscleGroups.forEach((muscle) => {
           muscleGroupTotals[muscle] = (muscleGroupTotals[muscle] || 0) + setCount;
         });
       }
   
-      // 3. Insert into session_muscle_volume
+      // 3) Insert results
       for (const muscleName of Object.keys(muscleGroupTotals)) {
         const totalSets = muscleGroupTotals[muscleName];
-        (await db).runAsync(`
-          INSERT INTO session_muscle_volume (
+        await (await db).runAsync(
+          `INSERT INTO session_muscle_volume (
             workout_session_id, muscle_name, total_sets, created_at
-          ) VALUES (?, ?, ?, ?)
-        `,
-        [sessionId, muscleName, totalSets, new Date().toISOString()]);
+          ) VALUES (?, ?, ?, ?)`,
+          [sessionId, muscleName, totalSets, new Date().toISOString()]
+        );
       }
   
       return true;
@@ -232,4 +257,5 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
       throw error;
     }
   }
+  
   

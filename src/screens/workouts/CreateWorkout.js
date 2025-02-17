@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { useColorScheme, View, TouchableOpacity, Text } from 'react-native';
+import {  View } from 'react-native';
 import { styles } from '../../theme/styles';
 import SelectExerciseList from "./SelectExerciseList";
 import SelectedExercisesManager from "./SelectedExercisesManager";
 import { WorkoutViewSwitch } from "../../components/WorkoutViewSwitch";
-import { DEFAULT_METRICS } from '../../database/workout_metrics';
-import { insertWorkoutIntoDB } from '../../database/db';
+import { AVAILABLE_METRICS } from '../../database/workout_metrics';
+
 
 export default function CreateWorkout({ route, navigation }) {
   const globalStyles = styles();
@@ -38,7 +38,7 @@ export default function CreateWorkout({ route, navigation }) {
             ...prev,
             [exercise.name]: {
               sets: [{ reps: null, weight: null, type: "reps" }],
-              activeMetrics: DEFAULT_METRICS
+              activeMetrics: [AVAILABLE_METRICS[0], AVAILABLE_METRICS[1]]
             }
           }));
         }
@@ -73,7 +73,7 @@ export default function CreateWorkout({ route, navigation }) {
           selectedExercises={selectedExercises}
         />
       ) : (
-        <SelectedExercisesManager 
+        <SelectedExercisesManager
           exercises={selectedExercises}
           exerciseData={exerciseData}
           setExerciseData={setExerciseData}

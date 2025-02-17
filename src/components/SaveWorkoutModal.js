@@ -5,14 +5,9 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
-  Alert,
   useColorScheme,
 } from 'react-native';
 import { styles } from '../theme/styles';
-import DraggableFlatList from 'react-native-draggable-flatlist';
-import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { faGripLines } from "@fortawesome/free-solid-svg-icons";
 
 export const SaveWorkoutModal = ({ 
   visible, 

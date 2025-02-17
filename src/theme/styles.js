@@ -225,6 +225,9 @@ export const styles = () => {
             justifyContent: 'center',
             alignItems: 'center',
             padding: 20,
+            backgroundColor: isDarkMode
+                ? 'rgba(0,0,0,0.9)'
+                : 'rgba(255,255,255,0.9)',
         },
         modalContent: {
             width: '100%',
@@ -232,6 +235,7 @@ export const styles = () => {
             padding: 20,
             maxHeight: '80%',
             shadowColor: isDarkMode ? '#000000' : '#000000',
+            backgroundColor: isDarkMode ? '#1C1C1E' : '#FFFFFF',
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.25,
             shadowRadius: 3.84,

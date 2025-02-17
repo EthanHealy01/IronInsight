@@ -4,7 +4,7 @@
  ***********************************/
 import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, TextInput, useColorScheme, SafeAreaView } from 'react-native';
-import { styles as globalStyles } from '../theme/styles';
+import { styles } from '../theme/styles';
 import { AVAILABLE_METRICS, METRIC_TYPES } from '../database/workout_metrics';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faTimes } from '@fortawesome/free-solid-svg-icons';
@@ -16,6 +16,7 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
     type: METRIC_TYPES.NUMBER,
   });
   const isDark = useColorScheme() === 'dark';
+  const globalStyles = styles()
 
   const handleAddCustomMetric = () => {
     if (customMetric.label.trim()) {
@@ -34,17 +35,11 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
         <View
           style={[
             globalStyles.modalContainer,
-            {
-              backgroundColor: isDark
-                ? 'rgba(0,0,0,0.9)'
-                : 'rgba(255,255,255,0.9)',
-            },
           ]}
         >
           <View
             style={[
               globalStyles.modalContent,
-              { backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' },
             ]}
           >
             <View style={[globalStyles.flexRowBetween, { marginBottom: 20 }]}>
@@ -52,10 +47,9 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
                 style={[
                   globalStyles.fontWeightBold,
                   globalStyles.fontSizeLarge,
-                  { color: isDark ? '#FFFFFF' : '#000000' },
                 ]}
               >
-                Add Metric
+                Add metric
               </Text>
               <TouchableOpacity onPress={onClose}>
                 <FontAwesomeIcon
@@ -86,7 +80,6 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
                   <Text
                     style={[
                       globalStyles.fontWeightBold,
-                      { color: isDark ? '#FFFFFF' : '#000000' },
                     ]}
                   >
                     {metric.label}
@@ -95,7 +88,6 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
                     style={[
                       globalStyles.fontSizeSmall,
                       {
-                        color: isDark ? '#CCCCCC' : '#666666',
                         marginTop: 5,
                       },
                     ]}

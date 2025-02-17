@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,35 +10,31 @@ import {
   Dimensions,
   Alert,
 } from "react-native";
-import { styles } from "../../theme/styles";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import {
-  faChevronDown,
-  faChevronUp,
   faPlus,
-  faTrash,
   faTimes,
-  faListNumeric,
-  faStopwatch,
+  faChevronUp,
+  faChevronDown,
   faChevronRight,
 } from "@fortawesome/free-solid-svg-icons";
-import ExerciseGifImage from "../../conponents/ExerciseGifImage";
-import { DEFAULT_METRICS } from "../../database/workout_metrics";
-import { AddMetricModal } from "../../components/AddMetricModal";
 import Swipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, { useAnimatedStyle } from "react-native-reanimated";
-import { SaveWorkoutModal } from '../../components/SaveWorkoutModal';
-import { insertWorkoutIntoDB } from '../../database/functions/workouts';
+import { useNavigation } from "@react-navigation/native";
 
+import { styles } from "../../theme/styles";
+import { AVAILABLE_METRICS } from "../../database/workout_metrics"; // your updated array
+import { AddMetricModal } from "../../components/AddMetricModal";
+import { SaveWorkoutModal } from "../../components/SaveWorkoutModal";
+import { insertWorkoutIntoDB } from "../../database/functions/workouts";
+import ExerciseGifImage from "../../components/ExerciseGifImage";
+
+// Swipe to delete dimension
 const RIGHT_ACTION_WIDTH = 75;
 
-function RightActions({ progress, translation, onDelete, index }) {
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: 0 }],
-    };
-  });
-
+function RightActions({ onDelete, index }) {
+  // Just a minimal animation stub
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateX: 0 }] }));
   return (
     <Reanimated.View
       style={[
@@ -62,102 +58,104 @@ function RightActions({ progress, translation, onDelete, index }) {
           alignItems: "center",
         }}
       >
-        <FontAwesomeIcon icon={faTrash} size={24} color="#FFFFFF" />
+        <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
       </TouchableOpacity>
     </Reanimated.View>
   );
 }
 
-const SelectedExercisesManager = ({
+export default function SelectedExercisesManager({
   exercises = [],
-  exerciseData,
+  exerciseData,     // { [exerciseName]: { sets: [...], activeMetrics: [...] } }
   setExerciseData,
   workoutName,
   setWorkoutName,
   onAddExercise,
   onDeleteExercise,
-  onViewChange,
-}) => {
+}) {
+  const navigation = useNavigation();
   const globalStyles = styles();
-  const isDark = useColorScheme() === 'dark';
-  const [expandedIndex, setExpandedIndex] = useState(-1);
+  const isDark = useColorScheme() === "dark";
 
-  // Expand the last exercise by default whenever exercises change
-  React.useEffect(() => {
+  const [expandedIndex, setExpandedIndex] = useState(-1);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+
+  // Expand the last exercise by default, if any
+  useEffect(() => {
     if (exercises.length > 0) {
       setExpandedIndex(exercises.length - 1);
     }
   }, [exercises.length]);
 
-  const handleUpdateExerciseData = (exerciseName, newData) => {
-    setExerciseData((prev) => ({
-      ...prev,
-      [exerciseName]: newData,
-    }));
-  };
-
-  const handleToggleExpand = (index) => {
-    setExpandedIndex(expandedIndex === index ? -1 : index);
-  };
-
-  const handleDelete = (index) => {
-    if (onDeleteExercise) {
-      onDeleteExercise(exercises[index]);
-    }
-  };
-
-  const [showSaveModal, setShowSaveModal] = useState(false);
-
+  // Called when user taps "Save workout"
   const handleSaveWorkout = async (name, orderedExercises) => {
     try {
-      // Store everything in DB (ONE row per exercise in users_workout_sets)
-      await insertWorkoutIntoDB(name, orderedExercises, exerciseData);
-      setShowSaveModal(false);
+      // Build final data to pass to insertWorkoutIntoDB
+      const finalExercises = orderedExercises.map((ex) => {
+        const data = exerciseData[ex.name] || {};
+        const { sets = [], activeMetrics = [] } = data;
+        return {
+          ...ex,
+          sets,
+          activeMetrics,
+        };
+      });
 
+      // Insert into DB (which can also insert sets in session_sets if user typed data)
+      await insertWorkoutIntoDB(name, finalExercises, exerciseData);
+
+      setShowSaveModal(false);
       Alert.alert("Success", "Workout saved successfully!");
+      navigation.navigate("Home");
     } catch (error) {
       console.error("Error saving workout:", error);
       Alert.alert("Error", "Failed to save workout. Please try again.");
     }
   };
 
+  const handleToggleExpand = (idx) => {
+    setExpandedIndex((prev) => (prev === idx ? -1 : idx));
+  };
+
+  const handleDeleteExercise = (idx) => {
+    if (onDeleteExercise) {
+      onDeleteExercise(exercises[idx]);
+    }
+  };
+
   return (
-    <SafeAreaView style={[globalStyles.container, {marginBottom:80}]}>
+    <SafeAreaView style={[globalStyles.container, { marginBottom: 80 }]}>
+      {/* Header row */}
       <View style={[globalStyles.flexRowBetween, { padding: 15 }]}>
         <TextInput
           value={workoutName}
           onChangeText={setWorkoutName}
           placeholder="Unnamed Workout"
-          placeholderTextColor={isDark ? "#999999" : "#666666"}
+          placeholderTextColor={isDark ? "#999" : "#666"}
           style={[
             globalStyles.fontWeightBold,
             globalStyles.fontSizeLarge,
             {
-              minWidth: 150,
+              color: isDark ? "#FFF" : "#000",
+              maxWidth: "50%",
               padding: 0,
               margin: 0,
-              color: isDark ? "#FFFFFF" : "#000000",
-              maxWidth: "50%",
             },
           ]}
         />
         <TouchableOpacity onPress={onAddExercise}>
           <View style={[globalStyles.flexRow, { gap: 5 }]}>
             <Text style={globalStyles.fontSizeSmall}>Add an exercise</Text>
-            <FontAwesomeIcon
-              icon={faPlus}
-              size={18}
-              color={isDark ? "#FFFFFF" : "#000000"}
-            />
+            <FontAwesomeIcon icon={faPlus} size={18} color={isDark ? "#FFF" : "#000"} />
           </View>
         </TouchableOpacity>
       </View>
 
-      {!exercises || exercises.length === 0 ? (
+      {exercises.length === 0 ? (
         <Text
           style={[
             globalStyles.fontSizeMedium,
-            { color: isDark ? "#FFFFFF" : "#000000", marginLeft: 15 },
+            { color: isDark ? "#FFF" : "#000", marginLeft: 15 },
           ]}
         >
           No exercises selected
@@ -165,27 +163,33 @@ const SelectedExercisesManager = ({
       ) : (
         <>
           <ScrollView style={{ flex: 1 }}>
-            {exercises.map((exercise, index) => (
-              <ExerciseItem
-                key={exercise.name || index}
-                exercise={exercise}
-                index={index}
-                isExpanded={expandedIndex === index}
-                onToggleExpand={handleToggleExpand}
-                onDelete={handleDelete}
-                // Pass in the already saved data (or fallback to defaults)
-                exerciseData={
-                  exerciseData[exercise.name] || {
-                    sets: [{ reps: "12", weight: "58", type: "reps" }],
-                    activeMetrics: DEFAULT_METRICS,
-                  }
-                }
-                onUpdateData={(newData) =>
-                  handleUpdateExerciseData(exercise.name, newData)
-                }
-              />
-            ))}
+            {exercises.map((exercise, idx) => {
+              const data = exerciseData[exercise.name] || {
+                sets: [{ Reps: "", Weight: "" }], // fallback
+                activeMetrics: [AVAILABLE_METRICS[0], AVAILABLE_METRICS[1]],
+              };
+
+              return (
+                <ExerciseItem
+                  key={exercise.name || idx}
+                  exercise={exercise}
+                  index={idx}
+                  isExpanded={expandedIndex === idx}
+                  onToggleExpand={handleToggleExpand}
+                  onDeleteExercise={handleDeleteExercise}
+                  exerciseData={data}
+                  onUpdateData={(newData) => {
+                    setExerciseData((prev) => ({
+                      ...prev,
+                      [exercise.name]: newData,
+                    }));
+                  }}
+                />
+              );
+            })}
           </ScrollView>
+
+          {/* Save Workout button */}
           <TouchableOpacity
             style={[
               globalStyles.primaryButton,
@@ -193,15 +197,13 @@ const SelectedExercisesManager = ({
               {
                 width: Dimensions.get("screen").width * 0.35,
                 marginLeft: "auto",
-                gap: 5
+                gap: 5,
               },
             ]}
             onPress={() => setShowSaveModal(true)}
           >
-            <Text style={[globalStyles.fontWeightSemiBold, { color: "white" }]}>
-              Save workout
-            </Text>
-            <FontAwesomeIcon icon={faChevronRight} color={"#FFFFFF"}/>
+            <Text style={[globalStyles.fontWeightSemiBold, { color: "#FFF" }]}>Save workout</Text>
+            <FontAwesomeIcon icon={faChevronRight} color="#FFF" />
           </TouchableOpacity>
         </>
       )}
@@ -216,66 +218,101 @@ const SelectedExercisesManager = ({
       />
     </SafeAreaView>
   );
-};
+}
 
-const ExerciseItem = ({
+/** Single exercise itemetric. We can have multiple sets & metrics. */
+function ExerciseItem({
   exercise,
   index,
   isExpanded,
   onToggleExpand,
-  onDelete,
+  onDeleteExercise,
   exerciseData,
   onUpdateData,
-}) => {
-  const { sets, activeMetrics } = exerciseData;
-  const [showMetricModal, setShowMetricModal] = useState(false);
+}) {
   const globalStyles = styles();
-  const isDark = useColorScheme() === 'dark';
+  const isDark = useColorScheme() === "dark";
+  const [showMetricModal, setShowMetricModal] = useState(false);
+
+  const { sets = [], activeMetrics = [] } = exerciseData;
 
   const addSet = () => {
     const newSet = {};
+    // For each metric, we create a separate field in the set object
     activeMetrics.forEach((metric) => {
-      newSet[metric.id] = "";
+      // The dictionary key is the metric's "name" – e.g. "weight", "reps", etc.
+      const key = metric.label || (metric.id + "_" + Date.now());
+      newSet[key] = "";
     });
-    newSet.type = "reps";
     onUpdateData({
       ...exerciseData,
       sets: [...sets, newSet],
     });
   };
 
+  // When user picks "Add Metric" from the modal
   const handleAddMetric = (metric) => {
+    // We rely on metric.id from your array, 
+    // but must create a "name" that is unique each time
+    if (!metric.id) {
+      metric.id = "custom_" + Date.now();
+    }
+    // We'll define the .name so we can store it in the set object
+    // e.g. "weight_1689653561"
+    metric.label = metric.id + "_" + Date.now();
+
     const newMetrics = [...activeMetrics, metric];
-    const newSets = sets.map((set) => ({ ...set, [metric.id]: "" }));
+    // For each set, add a new field
+    const updatedSets = sets.map((setRow) => ({
+      ...setRow,
+      [metric.label]: "",
+    }));
+
     onUpdateData({
       ...exerciseData,
       activeMetrics: newMetrics,
-      sets: newSets,
+      sets: updatedSets,
     });
   };
 
-  const handleRemoveMetric = (metricId) => {
-    const newMetrics = activeMetrics.filter((m) => m.id !== metricId);
-    const newSets = sets.map((set) => {
-      const newSet = { ...set };
-      delete newSet[metricId];
-      return newSet;
-    });
-    onUpdateData({
-      ...exerciseData,
-      activeMetrics: newMetrics,
-      sets: newSets,
-    });
+  const handleRemoveMetric = (metricName) => {
+    Alert.alert(
+      "Remove Metric",
+      `Are you sure you want to remove metric '${metricName}'?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            const filtered = activeMetrics.filter((metric) => metric.label !== metricName);
+            const updatedSets = sets.map((row) => {
+              const copy = { ...row };
+              delete copy[metricName];
+              return copy;
+            });
+            onUpdateData({
+              ...exerciseData,
+              activeMetrics: filtered,
+              sets: updatedSets,
+            });
+          },
+        },
+      ],
+      { cancelable: true }
+    );
   };
 
-  // IMPORTANT: Instead of using a local state (like setSets) to update the sets,
-  // we update the parent's state via onUpdateData.
-  const handleSetValueChange = (idx, metricId, text) => {
-    const newSets = sets.map((set, i) => {
-      if (i === idx) {
-        return { ...set, [metricId]: text };
+  // Called whenever user types in the input
+  const handleSetValueChange = (setIndex, metricName, text) => {
+    const newSets = sets.map((row, i) => {
+      if (i === setIndex) {
+        return {
+          ...row,
+          [metricName]: text,
+        };
       }
-      return set;
+      return row;
     });
     onUpdateData({
       ...exerciseData,
@@ -283,7 +320,11 @@ const ExerciseItem = ({
     });
   };
 
-  if (!exercise) return null;
+  const handleDelete = (idx) => {
+    if (onDeleteExercise) {
+      onDeleteExercise(idx);
+    }
+  };
 
   return (
     <View
@@ -301,16 +342,10 @@ const ExerciseItem = ({
         friction={1}
         rightThreshold={RIGHT_ACTION_WIDTH * 0.5}
         overshootRight={false}
-        renderRightActions={({ progress, translation }) => (
-          <RightActions
-            progress={progress}
-            translation={translation}
-            onDelete={onDelete}
-            index={index}
-          />
-        )}
+        renderRightActions={() => <RightActions onDelete={handleDelete} index={index} />}
         containerStyle={{ borderRadius: 8 }}
       >
+        {/* Collapsible header */}
         <TouchableOpacity
           onPress={() => onToggleExpand(index)}
           style={[
@@ -342,12 +377,11 @@ const ExerciseItem = ({
                   maxWidth: Dimensions.get("window").width * 0.6,
                 },
               ]}
-              numberOfLines={5}
-              minimumFontScale={0.5}
+              numberOfLines={3}
               ellipsizeMode="tail"
               adjustsFontSizeToFit
             >
-              {exercise.name || "Unnamed exercise"}
+              {exercise.name || "Unnamed Exercise"}
             </Text>
           </View>
           <FontAwesomeIcon
@@ -355,161 +389,79 @@ const ExerciseItem = ({
             size={16}
             color={isDark ? "#FFFFFF" : "#000000"}
           />
-        </TouchableOpacity>
+      </TouchableOpacity>
       </Swipeable>
 
       {isExpanded && (
-        <View
-          style={{
-            padding: 10,
-            backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF",
-          }}
-        >
-          <Text style={[globalStyles.fontSizeSmall, globalStyles.grayText, {marginBottom:10}]}>
-            If you wish, fill the fields with the weight you liften in your last workout.
-            You can also add extra metrics like rest time/RIR etc.
-          </Text>
+        <View style={{ padding: 10, backgroundColor: isDark ? "#1C1C1E" : "#FFFFFF" }}>
+          {/* Horizontal scroll for sets */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
-              {/* Header row for the metrics */}
+              {/* Metric headers */}
               <View style={[globalStyles.flexRow, { marginBottom: 5 }]}>
                 <View style={{ width: 40, marginRight: 10 }}>
-                  <Text
-                    style={[
-                      globalStyles.fontSizeSmall,
-                      { color: isDark ? "#FFFFFF" : "#000000" },
-                    ]}
-                  >
+                  <Text style={[globalStyles.fontSizeSmall, { color: isDark ? "#FFFFFF" : "#000000" }]}>
                     Set
                   </Text>
                 </View>
-                {activeMetrics.map((metric) => (
-                  <View key={metric.id} style={{ width: 80, marginRight: 10 }}>
-                    <View
-                      style={[globalStyles.flexRowBetween, { marginBottom: 5 }]}
-                    >
-                      {metric.hasTimeOption ? (
-                        <TouchableOpacity
-                          style={[
-                            globalStyles.flexRowBetween,
-                            {
-                              gap: 5,
-                              borderWidth: 1,
-                              borderColor: isDark ? "#444444" : "#DDDDDD",
-                              borderRadius: 4,
-                              padding: 4,
-                              flex: 1,
-                            },
-                          ]}
-                          onPress={() => {
-                            // Example: toggle between "reps" and "time" – update via onUpdateData if needed.
-                          }}
-                        >
-                          <View style={[globalStyles.flexRow, { gap: 5 }]}>
-                            <Text
-                              style={[
-                                globalStyles.fontSizeSmall,
-                                { color: isDark ? "#FFFFFF" : "#000000" },
-                              ]}
-                            >
-                              {metric.id === "reps" && sets[0].type === "time"
-                                ? "Seconds"
-                                : metric.label}
-                            </Text>
-                            <FontAwesomeIcon
-                              icon={
-                                sets[0].type === "reps"
-                                  ? faListNumeric
-                                  : faStopwatch
-                              }
-                              size={12}
-                              color={isDark ? "#999999" : "#666666"}
-                            />
-                          </View>
-                        </TouchableOpacity>
-                      ) : (
-                        <Text
-                          style={[
-                            globalStyles.fontSizeSmall,
-                            { color: isDark ? "#FFFFFF" : "#000000" },
-                          ]}
-                        >
-                          {metric.label}
+                {activeMetrics.map((metric) => {
+                  // The displayed label is from your array's "label"
+                  const displayedLabel = metric.label || metric.id;
+                  return (
+                    <View key={metric.label} style={{ width: 80, marginRight: 10 }}>
+                      <View style={[globalStyles.flexRowBetween, { alignItems: "center" }]}>
+                        <Text style={[globalStyles.fontSizeSmall, { color: isDark ? "#FFF" : "#000" }]}>
+                          {displayedLabel}
                         </Text>
-                      )}
-                      {metric.id !== "reps" && metric.id !== "weight" && (
-                        <TouchableOpacity
-                          onPress={() => handleRemoveMetric(metric.id)}
-                        >
-                          <FontAwesomeIcon
-                            icon={faTimes}
-                            size={12}
-                            color={isDark ? "#999999" : "#666666"}
-                          />
+                        <TouchableOpacity onPress={() => handleRemoveMetric(metric.label)}>
+                          <FontAwesomeIcon icon={faTimes} size={12} color={isDark ? "#999" : "#666"} />
                         </TouchableOpacity>
-                      )}
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
 
-              {/* Rows for each set */}
-              {sets.map((set, idx) => (
-                <View
-                  key={idx}
-                  style={[globalStyles.flexRow, { marginBottom: 10 }]}
-                >
+              {/* Each set row */}
+              {sets.map((setObj, setIdx) => (
+                <View key={setIdx} style={[globalStyles.flexRow, { marginBottom: 10 }]}>
                   <View style={{ width: 40, marginRight: 10 }}>
-                    <Text
-                      style={[
-                        globalStyles.fontWeightBold,
-                        { color: isDark ? "#FFFFFF" : "#000000" },
-                      ]}
-                    >
-                      {idx + 1}
+                    <Text style={[globalStyles.fontWeightBold, { color: isDark ? "#FFF" : "#000" }]}>
+                      {setIdx + 1}
                     </Text>
                   </View>
-                  {activeMetrics.map((metric) => (
-                    <TextInput
-                      key={metric.id}
-                      style={[
-                        globalStyles.input,
-                        {
-                          width: 80,
-                          marginRight: 10,
-                          color: isDark ? "#FFFFFF" : "#000000",
-                          backgroundColor: "#FFCA97",
-                          borderColor: "#FFCA97",
-                          borderRadius: 100,
-                        },
-                      ]}
-                      placeholder={
-                        metric.hasTimeOption
-                          ? set.type === "reps"
-                            ? "Reps"
-                            : "Sec"
-                          : metric.label
-                      }
-                      placeholderTextColor={"#666666"}
-                      value={set[metric.id]}
-                      keyboardType={
-                        metric.type === "number" ? "numeric" : "default"
-                      }
-                      onChangeText={(text) => {
-                        let numericValue = 0;
-                    
-                        // If your metric.id is "weight", parse as float
-                        // Otherwise parse as int for reps/time
-                        if (metric.id === "weight") {
-                          numericValue = parseFloat(text) || 0;
-                        } else {
-                          numericValue = parseInt(text, 10) || 0;
-                        }
-                    
-                        handleSetValueChange(idx, metric.id, numericValue);
-                      }}
-                    />
-                  ))}
+                  {activeMetrics.map((metric) => {
+                    // 'metric.label' is the dictionary key
+                    const val = setObj[metric.label] ?? "";
+                    return (
+                      <TextInput
+                        key={metric.label}
+                        style={[
+                          globalStyles.input,
+                          {
+                            width: 80,
+                            marginRight: 10,
+                            color: isDark ? "#FFF" : "#000",
+                            backgroundColor: "#FFCA97",
+                            borderColor: "#FFCA97",
+                            borderRadius: 100,
+                          },
+                        ]}
+                        placeholder={metric.label}
+                        placeholderTextColor="#666"
+                        value={String(val)}
+                        keyboardType={metric.type === "number" ? "numeric" : "default"}
+                        onChangeText={(text) => {
+                          let parsed = text;
+                          if (metric.type === "number") {
+                            const num = parseFloat(text);
+                            parsed = isNaN(num) ? "" : num;
+                          }
+                          handleSetValueChange(setIdx, metric.label, parsed);
+                        }}
+                      />
+                    );
+                  })}
                 </View>
               ))}
             </View>
@@ -520,18 +472,17 @@ const ExerciseItem = ({
               onPress={addSet}
               style={[globalStyles.primaryButton, { flex: 1, marginRight: 5 }]}
             >
-              <Text style={[globalStyles.buttonText]}>Add Set</Text>
+              <Text style={globalStyles.buttonText}>Add Set</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setShowMetricModal(true)}
               style={[globalStyles.secondaryButton, { flex: 1, marginLeft: 5 }]}
             >
-              <Text style={[globalStyles.buttonText]}>
-                Add a tracked metric
-              </Text>
+              <Text style={globalStyles.buttonText}>Add Metric</Text>
             </TouchableOpacity>
           </View>
 
+          {/* Metric modal */}
           <AddMetricModal
             visible={showMetricModal}
             onClose={() => setShowMetricModal(false)}
@@ -541,6 +492,4 @@ const ExerciseItem = ({
       )}
     </View>
   );
-};
-
-export default SelectedExercisesManager;
+}

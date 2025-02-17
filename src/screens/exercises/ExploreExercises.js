@@ -12,7 +12,7 @@ import {
 import { styles } from "../../theme/styles";
 import static_workouts from "../../database/static_workouts.json";
 import { useNavigation } from "@react-navigation/native";
-import ExerciseGifImage from "../../conponents/ExerciseGifImage";
+import ExerciseGifImage from "../../components/ExerciseGifImage";
 import ActionSheet, {
   SheetManager,
   registerSheet,

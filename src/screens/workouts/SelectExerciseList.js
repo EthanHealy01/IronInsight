@@ -12,7 +12,7 @@ import {
 } from "react-native";
 import { styles } from "../../theme/styles";
 import static_workouts from "../../database/static_workouts.json";
-import ExerciseGifImage from "../../conponents/ExerciseGifImage";
+import ExerciseGifImage from "../../components/ExerciseGifImage";
 import ActionSheet, {
   SheetManager,
   registerSheet,
@@ -249,28 +249,6 @@ const SelectExerciseList = ({ onSelect, selectedExercises, onViewChange }) => {
         placeholderTextColor={isDarkMode ? "#999" : "#666"}
       />
 
-      {/* Muscle Group Filters */}
-      <ScrollView horizontal style={{ marginBottom: 10, height: 40 }} contentContainerStyle={{paddingBottom:40}}>
-        {muscleGroups.map((muscle) => (
-          <TouchableOpacity
-            key={muscle}
-            style={[
-              globalStyles.pill,
-              {
-                backgroundColor: selectedMuscle === muscle ? "#333" : "#eee",
-                marginHorizontal: 5,
-              },
-            ]}
-            onPress={() => setSelectedMuscle(muscle)}
-          >
-            <Text
-              style={{ color: selectedMuscle === muscle ? "#fff" : "#000" }}
-            >
-              {muscle}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
       </View>
 
       {/* Exercise List */}

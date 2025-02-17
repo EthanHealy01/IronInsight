@@ -1,59 +1,120 @@
+// database/functions/workouts.js
+
 import { db } from "../db";
 
 /**
- * Create a new workout template.
- * @param {string} templateName 
- * @param {Array}  exercises - array of { 
- *   name: string, 
- *   secondaryMuscles: string[], 
- *   sets: number,
- *   metrics: arrayOfObjects
+ * Each exercise object has:
+ * {
+ *   name: string,
+ *   secondary_muscle_groups: string[],
+ *   metrics: [
+ *     { name: 'Reps', type: 'number', value: 10 },
+ *     ...
+ *   ]
  * }
  */
 export async function createWorkoutTemplate(templateName, exercises) {
-    try {
-      // 1) Insert the template row
-      const result = (await db).runAsync(
-        `INSERT INTO workout_templates (name, created_at)
-         VALUES (?, ?)`,
-        [templateName, new Date().toISOString()]
-      );
-      const templateId = result.lastInsertRowId;
-  
-      // 2) Insert each exercise, including sets + metrics
-      for (let i = 0; i < exercises.length; i++) {
-        const ex = exercises[i];
-        const metricsWithType = ex.metrics || [];
-        if (ex.sets && ex.sets.length > 0) {
-          // Include the type (reps/time) in the metrics data
-          metricsWithType.push({ type: ex.sets[0].type || 'reps' });
-        }
+  console.log("createWorkoutTemplate received:", templateName, exercises);
+  try {
+    // 1) Insert row in workout_templates
+    const result = await (await db).runAsync(
+      `INSERT INTO workout_templates (name, created_at) VALUES (?, ?)`,
+      [templateName, new Date().toISOString()]
+    );
+    const { lastInsertRowId } = result;
+    const templateId = lastInsertRowId;
 
-        (await db).runAsync(`
-          INSERT INTO template_exercises (
-            workout_template_id,
-            exercise_name,
-            secondary_muscle_groups,
-            sets,
-            metrics,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?)
-        `,
+    // 2) Insert each exercise
+    for (const ex of exercises) {
+      const {
+        name,
+        secondary_muscle_groups = [],
+        metrics = [],
+        setsCount = 1,  // FIX #3: read from the object if available
+      } = ex;
+
+      // Build JSON for metrics
+      const metricsJson = JSON.stringify(metrics);
+
+      await (await db).runAsync(
+        `INSERT INTO template_exercises (
+           workout_template_id,
+           exercise_name,
+           secondary_muscle_groups,
+           sets,
+           metrics,
+           created_at
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
         [
           templateId,
-          ex.name,
-          JSON.stringify(ex.secondary_muscle_groups || []),
-          ex.sets || 3,
-          JSON.stringify(metricsWithType),
-          new Date().toISOString()
-        ]);
-      }
-      return templateId;
-    } catch (error) {
-      console.error("Error creating workout template:", error);
-      throw error;
+          name,
+          JSON.stringify(secondary_muscle_groups),
+          setsCount,            // store the actual # of sets
+          metricsJson,
+          new Date().toISOString(),
+        ]
+      );
     }
+
+    return templateId;
+  } catch (error) {
+    console.error("Error creating workout template:", error);
+    throw error;
   }
+}
+
+
+/**
+ * Overwrite a workout template with new exercise data (including metrics).
+ * We'll delete the old template_exercises rows and re-insert them.
+ */
+export async function updateWorkoutTemplate(templateId, exercises) {
+  try {
+    // 1) Delete old rows
+    await (await db).runAsync(
+      `DELETE FROM template_exercises WHERE workout_template_id = ?`,
+      [templateId]
+    );
+
+    // 2) Insert new rows
+    for (const ex of exercises) {
+      const {
+        name,
+        secondary_muscle_groups = [],
+        metrics = [],
+        // read setsCount if present
+        setsCount = 1
+      } = ex;
+
+      const metricsJson = JSON.stringify(metrics);
+
+      await (await db).runAsync(
+        `INSERT INTO template_exercises (
+           workout_template_id,
+           exercise_name,
+           secondary_muscle_groups,
+           sets,
+           metrics,
+           created_at
+         ) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          templateId,
+          name,
+          JSON.stringify(secondary_muscle_groups),
+          setsCount,  // Use the actual number of sets
+          metricsJson,
+          new Date().toISOString(),
+        ]
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error updating workout template:", error);
+    throw error;
+  }
+}
+
 
 export async function getWorkoutTemplates() {
   try {
@@ -73,4 +134,3 @@ export async function getWorkoutTemplates() {
     throw error;
   }
 }
-  
