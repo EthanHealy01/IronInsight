@@ -28,6 +28,7 @@ import { AddMetricModal } from "../../components/AddMetricModal";
 import { SaveWorkoutModal } from "../../components/SaveWorkoutModal";
 import { insertWorkoutIntoDB } from "../../database/functions/workouts";
 import ExerciseGifImage from "../../components/ExerciseGifImage";
+import { createWorkoutTemplate } from "../../database/functions/templates";
 
 // Swipe to delete dimension
 const RIGHT_ACTION_WIDTH = 75;
@@ -66,7 +67,7 @@ function RightActions({ onDelete, index }) {
 
 export default function SelectedExercisesManager({
   exercises = [],
-  exerciseData,     // { [exerciseName]: { sets: [...], activeMetrics: [...] } }
+  exerciseData,   
   setExerciseData,
   workoutName,
   setWorkoutName,
@@ -79,6 +80,8 @@ export default function SelectedExercisesManager({
 
   const [expandedIndex, setExpandedIndex] = useState(-1);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showMetricModal, setShowMetricModal] = useState(false);
+  const [selectedExerciseId, setSelectedExerciseId] = useState(null);
 
   // Expand the last exercise by default, if any
   useEffect(() => {
@@ -87,29 +90,51 @@ export default function SelectedExercisesManager({
     }
   }, [exercises.length]);
 
-  // Called when user taps "Save workout"
+  const finaliseTemplateDataShape = (name, orderedExercises, exerciseData) => {
+    const finalExercises = orderedExercises.map((ex) => {
+      const data = exerciseData[ex.name] || {};
+      const { sets = [], activeMetrics = [] } = data;
+      
+      return {
+        name: ex.name,
+        setsCount: sets.length,
+        metrics: activeMetrics.map(metric => ({
+          baseId: metric.baseId,
+          label: metric.label,
+          type: metric.type
+        })),
+        secondary_muscle_groups: ex.secondary_muscle_groups || []
+      };
+    });
+
+    return {
+      name,
+      exercises: finalExercises
+    };
+  };
+
   const handleSaveWorkout = async (name, orderedExercises) => {
     try {
-      // Build final data to pass to insertWorkoutIntoDB
-      const finalExercises = orderedExercises.map((ex) => {
-        const data = exerciseData[ex.name] || {};
-        const { sets = [], activeMetrics = [] } = data;
-        return {
-          ...ex,
-          sets,
-          activeMetrics,
-        };
-      });
+      const templateData = finaliseTemplateDataShape(name, orderedExercises, exerciseData);
+      
+      // Log the data structure
+      console.log("Template Data Shape:", templateData);
+      console.log("metrics", templateData.exercises[0].metrics);
 
-      // Insert into DB (which can also insert sets in session_sets if user typed data)
-      await insertWorkoutIntoDB(name, finalExercises, exerciseData);
+      // Call the database function
+      const templateId = await createWorkoutTemplate(
+        templateData.name, 
+        templateData.exercises
+      );
+
+      console.log("templateId", templateId);
 
       setShowSaveModal(false);
-      Alert.alert("Success", "Workout saved successfully!");
+      Alert.alert("Success", "Workout template saved!");
       navigation.navigate("Home");
     } catch (error) {
-      console.error("Error saving workout:", error);
-      Alert.alert("Error", "Failed to save workout. Please try again.");
+      console.error("Error saving workout template:", error);
+      Alert.alert("Error", "Failed to save workout template");
     }
   };
 
@@ -121,6 +146,51 @@ export default function SelectedExercisesManager({
     if (onDeleteExercise) {
       onDeleteExercise(exercises[idx]);
     }
+  };
+
+  const handleAddMetricConfirm = (metric, isRemoving = false) => {
+    setExerciseData((prev) => {
+      if (!prev) return prev;
+
+      return {
+        ...prev,
+        exercises: prev.exercises.map((ex) => {
+          if (ex.name === selectedExerciseId) {
+            let newActiveMetrics;
+            
+            if (isRemoving) {
+              // Remove the metric
+              newActiveMetrics = ex.metrics.filter(m => m.baseId !== metric.baseId);
+            } else {
+              // Add the metric if it's not already there
+              if (!ex.metrics.some(m => m.baseId !== metric.baseId)) {
+                newActiveMetrics = [...ex.metrics, metric];
+              } else {
+                newActiveMetrics = ex.metrics;
+              }
+            }
+
+            // Update sets to include/remove the metric
+            const updatedSets = ex.sets.map((setRow) => {
+              const newSet = { ...setRow };
+              if (isRemoving) {
+                delete newSet[metric.baseId];
+              } else {
+                newSet[metric.baseId] = "";
+              }
+              return newSet;
+            });
+
+            return {
+              ...ex,
+              metrics: newActiveMetrics,
+              sets: updatedSets,
+            };
+          }
+          return ex;
+        }),
+      };
+    });
   };
 
   return (
@@ -184,6 +254,7 @@ export default function SelectedExercisesManager({
                       [exercise.name]: newData,
                     }));
                   }}
+                  setSelectedExerciseId={setSelectedExerciseId} // Pass the setter to the child
                 />
               );
             })}
@@ -216,11 +287,18 @@ export default function SelectedExercisesManager({
         onSave={handleSaveWorkout}
         exerciseData={exerciseData}
       />
+
+      <AddMetricModal
+        visible={showMetricModal}
+        onClose={() => setShowMetricModal(false)}
+        onAddMetric={handleAddMetricConfirm}
+        selectedMetrics={exerciseData[selectedExerciseId]?.activeMetrics || []}
+      />
     </SafeAreaView>
   );
 }
 
-/** Single exercise itemetric. We can have multiple sets & metrics. */
+/** Single exercise item. We can have multiple sets & metrics. */
 function ExerciseItem({
   exercise,
   index,
@@ -229,6 +307,7 @@ function ExerciseItem({
   onDeleteExercise,
   exerciseData,
   onUpdateData,
+  setSelectedExerciseId, // receive the setter as a prop
 }) {
   const globalStyles = styles();
   const isDark = useColorScheme() === "dark";
@@ -252,20 +331,19 @@ function ExerciseItem({
 
   // When user picks "Add Metric" from the modal
   const handleAddMetric = (metric) => {
-    // We rely on metric.id from your array, 
-    // but must create a "name" that is unique each time
-    if (!metric.id) {
-      metric.id = "custom_" + Date.now();
+    // Don't modify the label of existing metrics
+    const newMetric = { ...metric };
+    
+    // Only generate unique ID for custom metrics
+    if (!newMetric.baseId) {
+      newMetric.baseId = `custom_${Date.now()}`;
     }
-    // We'll define the .name so we can store it in the set object
-    // e.g. "weight_1689653561"
-    metric.label = metric.id + "_" + Date.now();
 
-    const newMetrics = [...activeMetrics, metric];
-    // For each set, add a new field
+    const newMetrics = [...activeMetrics, newMetric];
+    // For each set, add a new field using the baseId as the key
     const updatedSets = sets.map((setRow) => ({
       ...setRow,
-      [metric.label]: "",
+      [newMetric.baseId]: "",
     }));
 
     onUpdateData({
@@ -275,20 +353,23 @@ function ExerciseItem({
     });
   };
 
-  const handleRemoveMetric = (metricName) => {
+  const handleRemoveMetric = (metricBaseId) => {
+    const metricToRemove = activeMetrics.find(m => m.baseId === metricBaseId);
+    if (!metricToRemove) return;
+
     Alert.alert(
       "Remove Metric",
-      `Are you sure you want to remove metric '${metricName}'?`,
+      `Are you sure you want to remove metric '${metricToRemove.label}'?`,
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            const filtered = activeMetrics.filter((metric) => metric.label !== metricName);
+            const filtered = activeMetrics.filter(metric => metric.baseId !== metricBaseId);
             const updatedSets = sets.map((row) => {
               const copy = { ...row };
-              delete copy[metricName];
+              delete copy[metricBaseId];
               return copy;
             });
             onUpdateData({
@@ -324,6 +405,12 @@ function ExerciseItem({
     if (onDeleteExercise) {
       onDeleteExercise(idx);
     }
+  };
+
+  // When opening the modal, pass the selected metrics
+  const handleAddMetricClick = (exerciseName) => {
+    setSelectedExerciseId(exerciseName);
+    setShowMetricModal(true);
   };
 
   return (
@@ -389,7 +476,7 @@ function ExerciseItem({
             size={16}
             color={isDark ? "#FFFFFF" : "#000000"}
           />
-      </TouchableOpacity>
+        </TouchableOpacity>
       </Swipeable>
 
       {isExpanded && (
@@ -404,22 +491,18 @@ function ExerciseItem({
                     Set
                   </Text>
                 </View>
-                {activeMetrics.map((metric) => {
-                  // The displayed label is from your array's "label"
-                  const displayedLabel = metric.label || metric.id;
-                  return (
-                    <View key={metric.label} style={{ width: 80, marginRight: 10 }}>
-                      <View style={[globalStyles.flexRowBetween, { alignItems: "center" }]}>
-                        <Text style={[globalStyles.fontSizeSmall, { color: isDark ? "#FFF" : "#000" }]}>
-                          {displayedLabel}
-                        </Text>
-                        <TouchableOpacity onPress={() => handleRemoveMetric(metric.label)}>
-                          <FontAwesomeIcon icon={faTimes} size={12} color={isDark ? "#999" : "#666"} />
-                        </TouchableOpacity>
-                      </View>
+                {activeMetrics.map((metric) => (
+                  <View key={metric.baseId} style={{ width: 80, marginRight: 10 }}>
+                    <View style={[globalStyles.flexRowBetween, { alignItems: "center" }]}>
+                      <Text style={[globalStyles.fontSizeSmall, { color: isDark ? "#FFF" : "#000" }]}>
+                        {metric.label}
+                      </Text>
+                      <TouchableOpacity onPress={() => handleRemoveMetric(metric.baseId)}>
+                        <FontAwesomeIcon icon={faTimes} size={12} color={isDark ? "#999" : "#666"} />
+                      </TouchableOpacity>
                     </View>
-                  );
-                })}
+                  </View>
+                ))}
               </View>
 
               {/* Each set row */}
@@ -431,11 +514,10 @@ function ExerciseItem({
                     </Text>
                   </View>
                   {activeMetrics.map((metric) => {
-                    // 'metric.label' is the dictionary key
-                    const val = setObj[metric.label] ?? "";
+                    const val = setObj[metric.baseId] ?? "";
                     return (
                       <TextInput
-                        key={metric.label}
+                        key={metric.baseId}
                         style={[
                           globalStyles.input,
                           {
@@ -457,7 +539,7 @@ function ExerciseItem({
                             const num = parseFloat(text);
                             parsed = isNaN(num) ? "" : num;
                           }
-                          handleSetValueChange(setIdx, metric.label, parsed);
+                          handleSetValueChange(setIdx, metric.baseId, parsed);
                         }}
                       />
                     );
@@ -475,7 +557,7 @@ function ExerciseItem({
               <Text style={globalStyles.buttonText}>Add Set</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowMetricModal(true)}
+              onPress={() => handleAddMetricClick(exercise.name)}
               style={[globalStyles.secondaryButton, { flex: 1, marginLeft: 5 }]}
             >
               <Text style={globalStyles.buttonText}>Add Metric</Text>
@@ -487,6 +569,7 @@ function ExerciseItem({
             visible={showMetricModal}
             onClose={() => setShowMetricModal(false)}
             onAddMetric={handleAddMetric}
+            selectedMetrics={activeMetrics}
           />
         </View>
       )}

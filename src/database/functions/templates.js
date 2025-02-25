@@ -82,11 +82,17 @@ export async function updateWorkoutTemplate(templateId, exercises) {
         name,
         secondary_muscle_groups = [],
         metrics = [],
-        // read setsCount if present
         setsCount = 1
       } = ex;
 
-      const metricsJson = JSON.stringify(metrics);
+      // Ensure metrics have the correct format
+      const formattedMetrics = metrics.map(m => ({
+        label: m.label || m.name,  // Handle both label and name properties
+        type: m.type || 'number',
+        value: m.value
+      }));
+
+      const metricsJson = JSON.stringify(formattedMetrics);
 
       await (await db).runAsync(
         `INSERT INTO template_exercises (
@@ -101,12 +107,53 @@ export async function updateWorkoutTemplate(templateId, exercises) {
           templateId,
           name,
           JSON.stringify(secondary_muscle_groups),
-          setsCount,  // Use the actual number of sets
+          setsCount,
           metricsJson,
           new Date().toISOString(),
         ]
       );
     }
+
+    // 3) Create initial workout session with the entered data
+    const sessionId = await createWorkoutSession(
+      templateId,
+      null, // userId
+      new Date().toISOString()
+    );
+
+    // 4) For each exercise, save its sets data
+    for (const ex of exercises) {
+      if (ex.sets && ex.sets.length > 0) {
+        const sessionExercise = await (await db).getAsync(
+          `SELECT id FROM session_exercises 
+           WHERE workout_session_id = ? AND exercise_name = ?`,
+          [sessionId, ex.name]
+        );
+
+        if (sessionExercise) {
+          for (const setData of ex.sets) {
+            const repsOrTime = setData.reps || setData.time || null;
+            const weight = setData.weight || null;
+            
+            // Everything else goes to custom metrics
+            const customMetrics = {};
+            for (const [key, value] of Object.entries(setData)) {
+              if (!["reps", "time", "weight"].includes(key) && value !== "") {
+                customMetrics[key] = value;
+              }
+            }
+
+            await insertSetForExercise(
+              sessionExercise.id,
+              repsOrTime,
+              weight,
+              customMetrics
+            );
+          }
+        }
+      }
+    }
+
 
     return true;
   } catch (error) {

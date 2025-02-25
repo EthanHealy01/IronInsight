@@ -80,9 +80,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
             ORDER BY te.id
           `, [template_id]);
 
-          // Build local state
           const exercisesWithSets = exercises.map((exRow) => {
-            // Parse metrics from JSON
             let parsedMetrics = [];
             if (exRow.metricsJson) {
               try {
@@ -92,16 +90,14 @@ const ActiveWorkoutHome = ({ template_id }) => {
               }
             }
             if (!parsedMetrics || parsedMetrics.length === 0) {
-              // Provide default Reps/Weight if empty
               parsedMetrics = [AVAILABLE_METRICS[0], AVAILABLE_METRICS[1]];
             }
 
-            // Build empty sets
             const setCount = exRow.suggested_sets || 3;
             const currentSets = Array.from({ length: setCount }, () => {
               const emptySet = {};
               parsedMetrics.forEach((m) => {
-                emptySet[m.name] = '';
+                emptySet[m.label] = '';
               });
               return emptySet;
             });
@@ -244,7 +240,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
         if (ex.id === exerciseId) {
           const newSet = {};
           ex.activeMetrics.forEach((m) => {
-            newSet[m.name] = '';
+            newSet[m.label] = '';
           });
           return {
             ...ex,
@@ -279,11 +275,25 @@ const ActiveWorkoutHome = ({ template_id }) => {
 
   // Confirm adding a new metric
   const handleAddMetricConfirm = (newMetric) => {
-    if (!newmetric.label) {
+    // Get the current exercise's metrics
+    const currentExercise = workoutData.exercises.find(ex => ex.id === selectedExerciseId);
+    const existingMetricLabels = currentExercise?.activeMetrics.map(m => m.label.toLowerCase()) || [];
+
+    // Check if metric already exists (case insensitive comparison)
+    const normalizedNewLabel = newMetric.label?.toLowerCase();
+    if (existingMetricLabels.includes(normalizedNewLabel)) {
+      Alert.alert(
+        "Duplicate Metric",
+        `Metric "${newMetric.label}" already exists`,
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // Only proceed if it's a new metric
+    if (!newMetric.label) {
       // user might have chosen from default
-      newmetric.label = `custom_${Date.now()}`;
-    } else {
-      newmetric.label = `${newmetric.label}_${Date.now()}`;
+      newMetric.label = `custom_${Date.now()}`;
     }
 
     setWorkoutData((prev) => {
@@ -293,7 +303,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
           const updatedMetrics = [...ex.activeMetrics, newMetric];
           const updatedSets = ex.currentSets.map((s) => ({
             ...s,
-            [newmetric.label]: '',
+            [newMetric.label]: '',
           }));
           return {
             ...ex,
@@ -305,6 +315,9 @@ const ActiveWorkoutHome = ({ template_id }) => {
       });
       return { ...prev, exercises: updated };
     });
+
+    // Save the updated metrics to the database
+    saveMetricsToDatabase(selectedExerciseId);
     setShowMetricModal(false);
   };
 
@@ -324,7 +337,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
               const updated = prev.exercises.map((ex) => {
                 if (ex.id === exerciseId) {
                   const filteredMetrics = ex.activeMetrics.filter(
-                    (m) => m.name !== metricLabel
+                    (m) => m.label !== metricLabel
                   );
                   const updatedSets = ex.currentSets.map((setObj) => {
                     const copy = { ...setObj };
@@ -341,11 +354,31 @@ const ActiveWorkoutHome = ({ template_id }) => {
               });
               return { ...prev, exercises: updated };
             });
+
+            // Save the updated metrics to the database immediately
+            saveMetricsToDatabase(exerciseId);
           },
         },
       ],
       { cancelable: true }
     );
+  };
+
+  // Add this new function to save metrics to the database
+  const saveMetricsToDatabase = async (exerciseId) => {
+    try {
+      const exercise = workoutData.exercises.find(ex => ex.id === exerciseId);
+      if (!exercise) return;
+
+      await (await db).runAsync(
+        `UPDATE template_exercises 
+         SET metrics = ?
+         WHERE id = ?`,
+        [JSON.stringify(exercise.activeMetrics), exerciseId]
+      );
+    } catch (error) {
+      console.error('Error saving metrics:', error);
+    }
   };
 
   // Autofill: copy last session's values into current set
@@ -389,6 +422,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
         new Date().toISOString()
       );
 
+      console.log("sessionId", sessionId)
       // 2) Insert sets
       const sessionExercises = await (await db).getAllAsync(`
         SELECT * FROM session_exercises WHERE workout_session_id = ?
@@ -427,7 +461,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
       // 3) finalize volume
       await finalizeSessionVolume(sessionId);
 
-      // 4) Update the template’s metrics + store actual setCount
+      // 4) Update the template's metrics + store actual setCount
       const updatedExercisesForTemplate = workoutData.exercises.map((ex) => {
         let muscleGroups = [];
         try {
@@ -472,7 +506,6 @@ const ActiveWorkoutHome = ({ template_id }) => {
 
   // Renders each exercise card
   const renderExerciseCard = (exercise) => {
-    console.log("Ethan", exercise.id)
     const exId = exercise.id;
     const isFinished = completedExercises.has(exId);
     const isExpanded = expandedExercise === exId;
@@ -507,7 +540,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
             globalStyles.flexRowBetween,
             {
               padding: 10,
-              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
+              backgroundColor: isDark ? '#000000' : '#FFFFFF',
             },
           ]}
         >
@@ -542,7 +575,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
         </TouchableOpacity>
 
         {isExpanded && (
-          <View style={{ padding: 10, backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF' }}>
+          <View style={{ padding: 10, backgroundColor: isDark ? '#000000' : '#FFFFFF' }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View>
                 {/* Metrics Header */}
@@ -629,7 +662,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
                               {
                                 width: 80,
                                 marginRight: 10,
-                                color: isDark ? '#FFFFFF' : '#000000',
+                                color: '#000000',
                                 backgroundColor: '#FFCA97',
                                 borderColor: '#FFCA97',
                                 borderRadius: 100,
@@ -641,7 +674,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
                             placeholderTextColor="#666666"
                             value={String(currentVal)}
                             keyboardType={metric.type === 'number' ? 'numeric' : 'default'}
-                            onChangeText={(text) => handleSetChange(exId, setIndex, metric.label, text, metric)}
+                            onChangeText={(text) => handleSetChange(exId, setIndex, metric.label, text)}
                           />
                         );
                       })}

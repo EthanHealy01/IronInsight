@@ -1,4 +1,3 @@
-
 import { db } from "../db";
 import { createWorkoutTemplate } from "./templates";
 
@@ -81,9 +80,8 @@ export async function insertWorkoutIntoDB(templateName, orderedExercises, exerci
     // 1. Insert the workout template
     const templateId = await createWorkoutTemplate(templateName, orderedExercises);
 
-    // 2. Check if any exercise in the template has "historical" data
+    // 2. Check if any exercise in the template has data entered
     let hasHistoricalData = false;
-
     for (const ex of orderedExercises) {
       const data = exerciseData[ex.name];
       if (data && Array.isArray(data.sets)) {
@@ -102,7 +100,7 @@ export async function insertWorkoutIntoDB(templateName, orderedExercises, exerci
       if (hasHistoricalData) break;
     }
 
-    // 3. If there's historical data, create a session + insert sets
+    // 3. If there's data entered, create a session + insert sets
     if (hasHistoricalData) {
       const sessionId = await createWorkoutSession(
         templateId,
@@ -110,152 +108,156 @@ export async function insertWorkoutIntoDB(templateName, orderedExercises, exerci
         new Date().toISOString()
       );
 
-      // 4. Retrieve the session_exercises
+      // 4. Get the session exercises
       const sessionExercises = await (await db).getAllAsync(
         `SELECT * FROM session_exercises WHERE workout_session_id = ?`,
         [sessionId]
       );
 
-      // 5. For each session exercise, insert sets
+      // 5. For each exercise, insert its sets
       for (const sessEx of sessionExercises) {
         const exerciseName = sessEx.exercise_name;
         const data = exerciseData[exerciseName];
+        
         if (data && Array.isArray(data.sets)) {
           for (const setObj of data.sets) {
-            // Decide how to store reps/time/weight
+            // Extract standard metrics
             const repsOrTime = setObj.reps || setObj.time || null;
             const weight = setObj.weight || null;
-            // Everything else is custom
+            
+            // Everything else goes into customMetrics
             const customMetrics = {};
-
-            for (const key of Object.keys(setObj)) {
+            for (const key in setObj) {
               if (!["reps", "time", "weight"].includes(key)) {
                 customMetrics[key] = setObj[key];
               }
             }
 
-            // If any field is filled, let's insert it
-            const anyField = Object.values(setObj).some(v => v != null && v !== "");
-            if (anyField) {
+            // Only insert if any field has data
+            const hasData = Object.values(setObj).some(v => v != null && v !== "");
+            if (hasData) {
               await insertSetForExercise(sessEx.id, repsOrTime, weight, customMetrics);
             }
           }
         }
       }
+
+      // 6. Calculate and store volume data
+      await finalizeSessionVolume(sessionId);
     }
 
     return templateId;
   } catch (error) {
-    console.error("insertWorkoutIntoDB error:", error);
+    console.error("Error saving workout:", error);
     throw error;
   }
 }
 
-  export async function setExercisingState(isExercising, templateId = null) {
-    try {
-      (await db).runAsync(`
-        UPDATE app_state 
-        SET is_exercising = ?, 
-            active_template_id = ?
-      `, [isExercising ? 1 : 0, templateId]);
-    } catch (error) {
-      console.error("Error updating exercising state:", error);
-      throw error;
-    }
+export async function setExercisingState(isExercising, templateId = null) {
+  try {
+    (await db).runAsync(`
+      UPDATE app_state 
+      SET is_exercising = ?, 
+          active_template_id = ?
+    `, [isExercising ? 1 : 0, templateId]);
+  } catch (error) {
+    console.error("Error updating exercising state:", error);
+    throw error;
   }
+}
 
-  export async function getExercisingState() {
-    try {
-      const result = await db.getAllAsync(`
-        SELECT is_exercising, active_template_id 
-        FROM app_state 
-        LIMIT 1
-      `);
-      
-      // The row exists and has the correct values
-      const row = result?.[0];
-      if (!row) {
-        return { isExercising: false, activeTemplateId: null };
-      }
-
-      return {
-        isExercising: Boolean(row.is_exercising), 
-        activeTemplateId: row.active_template_id 
-      };
-    } catch (error) {
-      console.error("Error getting exercising state:", error);
-      throw error;
+export async function getExercisingState() {
+  try {
+    const result = await db.getAllAsync(`
+      SELECT is_exercising, active_template_id 
+      FROM app_state 
+      LIMIT 1
+    `);
+    
+    // The row exists and has the correct values
+    const row = result?.[0];
+    if (!row) {
+      return { isExercising: false, activeTemplateId: null };
     }
-  }
 
-  // Remove the old setActiveWorkout function
-  export async function setActiveWorkout(workoutId) {
-    try {
-      await (await db).runAsync(`
-        UPDATE app_state 
-        SET currently_exercising = 1, 
-            active_workout_id = ?,
-            current_exercise_id = NULL
-      `, [workoutId]);
-    } catch (error) {
-      console.error("Error setting active workout:", error);
-      throw error;
-    }
+    return {
+      isExercising: Boolean(row.is_exercising), 
+      activeTemplateId: row.active_template_id 
+    };
+  } catch (error) {
+    console.error("Error getting exercising state:", error);
+    throw error;
   }
-  
-  /**
-   * Summarize volume across muscle groups for a session
-   */
-  export async function finalizeSessionVolume(sessionId) {
-    try {
-      // 1) We MUST await getAllAsync
-      const exercises = await (await db).getAllAsync(
-        `SELECT id, secondary_muscle_groups
-         FROM session_exercises
-         WHERE workout_session_id = ?`,
-        [sessionId]
+}
+
+// Remove the old setActiveWorkout function
+export async function setActiveWorkout(workoutId) {
+  try {
+    await (await db).runAsync(`
+      UPDATE app_state 
+      SET currently_exercising = 1, 
+          active_workout_id = ?,
+          current_exercise_id = NULL
+    `, [workoutId]);
+  } catch (error) {
+    console.error("Error setting active workout:", error);
+    throw error;
+  }
+}
+
+/**
+ * Summarize volume across muscle groups for a session
+ */
+export async function finalizeSessionVolume(sessionId) {
+  try {
+    // 1) We MUST await getAllAsync
+    const exercises = await (await db).getAllAsync(
+      `SELECT id, secondary_muscle_groups
+       FROM session_exercises
+       WHERE workout_session_id = ?`,
+      [sessionId]
+    );
+
+    const muscleGroupTotals = {};
+
+    // 2) Now we can do for-of on the array
+    for (const ex of exercises) {
+      const setsResult = await (await db).getAllAsync(
+        `SELECT COUNT(*) as setCount
+         FROM session_sets
+         WHERE session_exercise_id = ?`,
+        [ex.id]
       );
-  
-      const muscleGroupTotals = {};
-  
-      // 2) Now we can do for-of on the array
-      for (const ex of exercises) {
-        const setsResult = await (await db).getAllAsync(
-          `SELECT COUNT(*) as setCount
-           FROM session_sets
-           WHERE session_exercise_id = ?`,
-          [ex.id]
-        );
-        const setCount = setsResult?.[0]?.setCount || 0;
-  
-        let muscleGroups = [];
-        try {
-          muscleGroups = JSON.parse(ex.secondary_muscle_groups || "[]");
-        } catch (err) {
-          console.warn("Invalid JSON for muscle groups:", ex.secondary_muscle_groups);
-        }
-  
-        muscleGroups.forEach((muscle) => {
-          muscleGroupTotals[muscle] = (muscleGroupTotals[muscle] || 0) + setCount;
-        });
+      const setCount = setsResult?.[0]?.setCount || 0;
+
+      let muscleGroups = [];
+      try {
+        muscleGroups = JSON.parse(ex.secondary_muscle_groups || "[]");
+      } catch (err) {
+        console.warn("Invalid JSON for muscle groups:", ex.secondary_muscle_groups);
       }
-  
-      // 3) Insert results
-      for (const muscleName of Object.keys(muscleGroupTotals)) {
-        const totalSets = muscleGroupTotals[muscleName];
-        await (await db).runAsync(
-          `INSERT INTO session_muscle_volume (
-            workout_session_id, muscle_name, total_sets, created_at
-          ) VALUES (?, ?, ?, ?)`,
-          [sessionId, muscleName, totalSets, new Date().toISOString()]
-        );
-      }
-  
-      return true;
-    } catch (error) {
-      console.error("Error finalizing session volume:", error);
-      throw error;
+
+      muscleGroups.forEach((muscle) => {
+        muscleGroupTotals[muscle] = (muscleGroupTotals[muscle] || 0) + setCount;
+      });
     }
+
+    // 3) Insert results
+    for (const muscleName of Object.keys(muscleGroupTotals)) {
+      const totalSets = muscleGroupTotals[muscleName];
+      await (await db).runAsync(
+        `INSERT INTO session_muscle_volume (
+          workout_session_id, muscle_name, total_sets, created_at
+        ) VALUES (?, ?, ?, ?)`,
+        [sessionId, muscleName, totalSets, new Date().toISOString()]
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error finalizing session volume:", error);
+    throw error;
   }
-  
+}
+
   

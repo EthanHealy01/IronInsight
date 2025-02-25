@@ -1,4 +1,3 @@
-
 /***********************************
  *  AddMetricModal Implementation
  ***********************************/
@@ -9,20 +8,28 @@ import { AVAILABLE_METRICS, METRIC_TYPES } from '../database/workout_metrics';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faTimes } from '@fortawesome/free-solid-svg-icons';
 
-export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
+export const AddMetricModal = ({ visible, onClose, onAddMetric, selectedMetrics = [] }) => {
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customMetric, setCustomMetric] = useState({
     label: '',
     type: METRIC_TYPES.NUMBER,
   });
   const isDark = useColorScheme() === 'dark';
-  const globalStyles = styles()
+  const globalStyles = styles();
+
+  const handleMetricPress = (metric) => {
+    onAddMetric(metric);
+    onClose();
+  };
 
   const handleAddCustomMetric = () => {
     if (customMetric.label.trim()) {
+      const baseId = customMetric.label.toLowerCase().replace(/\s+/g, '_');
       onAddMetric({
         ...customMetric,
-        id: customMetric.label.toLowerCase().replace(/\s+/g, '_'),
+        baseId,
+        id: `custom_${baseId}_${Date.now()}`,
+        description: customMetric.label,
       });
       setShowCustomForm(false);
       onClose();
@@ -61,41 +68,44 @@ export const AddMetricModal = ({ visible, onClose, onAddMetric }) => {
             </View>
 
             <ScrollView style={{ maxHeight: 400 }}>
-              {AVAILABLE_METRICS.map((metric) => (
-                <TouchableOpacity
-                  key={metric.id}
-                  style={[
-                    globalStyles.metricItem,
-                    {
-                      padding: 15,
-                      borderBottomWidth: 1,
-                      borderBottomColor: isDark ? '#333333' : '#EEEEEE',
-                    },
-                  ]}
-                  onPress={() => {
-                    onAddMetric(metric);
-                    onClose();
-                  }}
-                >
-                  <Text
+              {AVAILABLE_METRICS.map((metric) => {
+                const isSelected = selectedMetrics.some(m => m.baseId === metric.baseId);
+                
+                return (
+                  <TouchableOpacity
+                    key={metric.baseId}
                     style={[
-                      globalStyles.fontWeightBold,
-                    ]}
-                  >
-                    {metric.label}
-                  </Text>
-                  <Text
-                    style={[
-                      globalStyles.fontSizeSmall,
+                      globalStyles.metricItem,
                       {
-                        marginTop: 5,
+                        padding: 15,
+                        borderBottomWidth: 1,
+                        borderBottomColor: isDark ? '#333333' : '#EEEEEE',
+                        backgroundColor: isSelected 
+                          ? (isDark ? '#333333' : '#EEEEEE') 
+                          : 'transparent',
                       },
                     ]}
+                    onPress={() => handleMetricPress(metric)}
                   >
-                    {metric.description}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        globalStyles.fontSizeMedium,
+                        { color: isDark ? '#FFFFFF' : '#000000' },
+                      ]}
+                    >
+                      {metric.label}
+                    </Text>
+                    <Text
+                      style={[
+                        globalStyles.fontSizeSmall,
+                        { color: isDark ? '#999999' : '#666666' },
+                      ]}
+                    >
+                      {metric.description}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
 
               {!showCustomForm ? (
                 <TouchableOpacity
