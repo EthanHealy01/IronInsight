@@ -9,7 +9,7 @@ const getGifUrl = (path) => {
   return `https://ironinsight.s3.us-east-1.amazonaws.com/exercise_gifs/${path}`;
 }
 
-export default function ExerciseGifImage({ exerciseName="", url="", style={} }) {
+export default function ExerciseGifImage({ exerciseName="", url="", style={}, resizeMode="contain" }) {
   const [imageUrl, setImageUrl] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +56,7 @@ export default function ExerciseGifImage({ exerciseName="", url="", style={} }) 
     return null;
   }
 
+
   return (
     <View style={[style, { justifyContent: 'center', alignItems: 'center' }]}>
       <Image
@@ -64,6 +65,7 @@ export default function ExerciseGifImage({ exerciseName="", url="", style={} }) 
           uri: imageUrl,
           cache: retryCount > 0 ? 'reload' : 'default'
         }}
+        resizeMode={resizeMode}
         onError={handleLoadError}
         onLoadEnd={handleLoadSuccess}
       />
