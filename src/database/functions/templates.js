@@ -14,7 +14,6 @@ import { db } from "../db";
  * }
  */
 export async function createWorkoutTemplate(templateName, exercises) {
-  console.log("createWorkoutTemplate received:", templateName, exercises);
   try {
     // 1) Insert row in workout_templates
     const result = await (await db).runAsync(
@@ -85,9 +84,8 @@ export async function updateWorkoutTemplate(templateId, exercises) {
         setsCount = 1
       } = ex;
 
-      // Ensure metrics have the correct format
       const formattedMetrics = metrics.map(m => ({
-        label: m.label || m.name,  // Handle both label and name properties
+        label: m.label || m.name,
         type: m.type || 'number',
         value: m.value
       }));
@@ -115,9 +113,9 @@ export async function updateWorkoutTemplate(templateId, exercises) {
     }
 
     // 3) Create initial workout session with the entered data
-    const sessionId = await createWorkoutSession(
+    const sessionId = await createSessionForTemplate(
       templateId,
-      null, // userId
+      null,
       new Date().toISOString()
     );
 
@@ -135,7 +133,6 @@ export async function updateWorkoutTemplate(templateId, exercises) {
             const repsOrTime = setData.reps || setData.time || null;
             const weight = setData.weight || null;
             
-            // Everything else goes to custom metrics
             const customMetrics = {};
             for (const [key, value] of Object.entries(setData)) {
               if (!["reps", "time", "weight"].includes(key) && value !== "") {
@@ -143,7 +140,7 @@ export async function updateWorkoutTemplate(templateId, exercises) {
               }
             }
 
-            await insertSetForExercise(
+            await insertSetForTemplate(
               sessionExercise.id,
               repsOrTime,
               weight,
@@ -153,7 +150,6 @@ export async function updateWorkoutTemplate(templateId, exercises) {
         }
       }
     }
-
 
     return true;
   } catch (error) {
@@ -180,4 +176,58 @@ export async function getWorkoutTemplates() {
     console.error("Error fetching workout templates:", error);
     throw error;
   }
+}
+
+// Remove the createWorkoutSession import and implement directly here
+async function createSessionForTemplate(templateId, userId, sessionDate) {
+  const database = await db;
+  
+  // Create the session
+  const result = await database.runAsync(
+    `INSERT INTO workout_sessions (
+      workout_template_id, 
+      user_id, 
+      session_date, 
+      created_at
+    ) VALUES (?, ?, ?, ?)`,
+    [templateId, userId, sessionDate, new Date().toISOString()]
+  );
+
+  const sessionId = result.lastInsertRowId;
+
+  // Copy exercises from template
+  await database.runAsync(
+    `INSERT INTO session_exercises (
+      workout_session_id,
+      exercise_name,
+      secondary_muscle_groups,
+      created_at
+    )
+    SELECT 
+      ?,
+      exercise_name,
+      secondary_muscle_groups,
+      datetime('now')
+    FROM template_exercises
+    WHERE workout_template_id = ?`,
+    [sessionId, templateId]
+  );
+
+  return sessionId;
+}
+
+// Local version of insertSetForExercise
+async function insertSetForTemplate(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
+  await (await db).runAsync(
+    `INSERT INTO session_sets (
+      session_exercise_id, reps_or_time, weight, custom_metrics, created_at
+    ) VALUES (?, ?, ?, ?, ?)`,
+    [
+      sessionExerciseId,
+      repsOrTime,
+      weight,
+      JSON.stringify(customMetrics),
+      new Date().toISOString()
+    ]
+  );
 }

@@ -48,11 +48,10 @@ export default function WorkoutHome() {
   const loadTemplates = async () => {
     try {
       if (!db) {
-        console.log("Database not ready yet");
+        console.warn("Database not ready yet");
         return;
       }
       const result = await getWorkoutTemplates();
-      console.log("Workout data:", result);
       setTemplates(result);
       setLoading(false);
     } catch (error) {

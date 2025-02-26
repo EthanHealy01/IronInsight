@@ -6,7 +6,13 @@ import { createWorkoutTemplate } from "./templates";
  */
 export async function createWorkoutSession(templateId, userId, sessionDate) {
   try {
-    const result = await (await db).runAsync(
+    const database = await db;
+    if (!database) {
+      throw new Error("Database not initialized");
+    }
+
+    // Create the session
+    const result = await database.runAsync(
       `
       INSERT INTO workout_sessions (
         workout_template_id, 
@@ -20,8 +26,8 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
 
     const sessionId = result.lastInsertRowId;
 
-    // Copy exercises from template to session_exercises
-    await (await db).runAsync(
+    // Copy exercises from template
+    await database.runAsync(
       `
       INSERT INTO session_exercises (
         workout_session_id,
@@ -42,7 +48,7 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
 
     return sessionId;
   } catch (error) {
-    console.error("Error creating workout session:", error);
+    console.error("Detailed error in createWorkoutSession:", error);
     throw error;
   }
 }

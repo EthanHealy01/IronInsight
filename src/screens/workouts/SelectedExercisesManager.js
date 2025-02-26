@@ -117,17 +117,11 @@ export default function SelectedExercisesManager({
     try {
       const templateData = finaliseTemplateDataShape(name, orderedExercises, exerciseData);
       
-      // Log the data structure
-      console.log("Template Data Shape:", templateData);
-      console.log("metrics", templateData.exercises[0].metrics);
-
       // Call the database function
       const templateId = await createWorkoutTemplate(
         templateData.name, 
         templateData.exercises
       );
-
-      console.log("templateId", templateId);
 
       setShowSaveModal(false);
       Alert.alert("Success", "Workout template saved!");

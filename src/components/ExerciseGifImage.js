@@ -32,7 +32,7 @@ export default function ExerciseGifImage({ exerciseName="", url="", style={} }) 
   }, [exerciseName, url]);
 
   const handleLoadError = () => {
-    console.log('Image load error, retry count:', retryCount);
+    console.error('Image load error, retry count:', retryCount);
     setHasError(true);
     
     if (retryCount < MAX_RETRIES) {

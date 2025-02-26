@@ -18,10 +18,8 @@ export default function HomeScreen() {
   const updateWorkoutStatus = async () => {
     try {
       const { isExercising, activeTemplateId } = await getExercisingState();
-      console.log("Workout status - activeTemplateId:", activeTemplateId);
       setHasActiveWorkout(isExercising);
       setActiveTemplateId(activeTemplateId);
-      console.log("State updated - hasActiveWorkout:", isExercising, "activeTemplateId:", activeTemplateId);
     } catch (error) {
       console.error("Error checking workout status:", error);
     }
@@ -31,12 +29,6 @@ export default function HomeScreen() {
   useEffect(() => {
     updateWorkoutStatus().finally(() => setIsLoading(false));
   }, []);
-
-  // Log changes to activeTemplateId.
-  useEffect(() => {
-    console.log("Updated activeTemplateId:", activeTemplateId);
-  }, [activeTemplateId]);
-  
   // Refresh when screen is focused.
   useFocusEffect(
     React.useCallback(() => {
@@ -45,8 +37,6 @@ export default function HomeScreen() {
       }
     }, [isLoading])
   );
-
-  console.log("Current template ID:", activeTemplateId);
 
   if (isLoading) {
     return <View style={[globalStyles.backgroundColor]} />;

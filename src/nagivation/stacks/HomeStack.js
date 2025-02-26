@@ -5,6 +5,7 @@ import * as SQLite from 'expo-sqlite';
 import NotificationsScreen from "../../screens/home/NotificationsScreen";
 import HomeScreen from "../../screens/home/HomeScreen";
 import ActiveWorkoutHome from "../../screens/home/ActiveWorkoutHome";
+import WorkoutRecap from "../../screens/home/WorkoutRecap";
 import ExploreExercises from "../../screens/exercises/ExploreExercises";
 import WorkoutHome from "../../screens/workouts/WorkoutsHome";
 import CreateWorkout from "../../screens/workouts/CreateWorkout";
@@ -19,11 +20,18 @@ export default function HomeStack() {
   useFocusEffect(
     React.useCallback(() => {
       async function checkWorkoutStatus() {
-        const { isExercising, activeTemplateId } = await getExercisingState();
-        setIsExercising(isExercising);
-        setActiveTemplateId(activeTemplateId);
+        try {
+          const { isExercising, activeTemplateId } = await getExercisingState();
+          setIsExercising(isExercising);
+          setActiveTemplateId(activeTemplateId);
+        } catch (error) {
+          console.error("Error checking workout state:", error);
+        }
       }
+      
       checkWorkoutStatus();
+      
+      // No need to return anything for cleanup
     }, [])
   );
 
@@ -35,13 +43,18 @@ export default function HomeStack() {
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "none" }}>
       <Stack.Screen
         name="HomeMain"
-        component={isExercising ? ActiveWorkoutWithProps : HomeScreen}
+        component={HomeScreen}
         options={{ title: "Home" }}
       />
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}
         options={{ title: "Notifications" }}
+      />
+      <Stack.Screen
+        name="WorkoutRecap"
+        component={WorkoutRecap}
+        options={{ title: "Workout Recap" }}
       />
       <Stack.Screen
         name="ExploreExercises"

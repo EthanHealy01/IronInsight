@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import {
   faTimes,
   faCheck,
 } from '@fortawesome/free-solid-svg-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { db } from '../../database/db';
 import { styles } from '../../theme/styles';
@@ -32,11 +33,18 @@ import {
   insertSetForExercise,
   finalizeSessionVolume,
   setExercisingState,
+  getExercisingState,
 } from '../../database/functions/workouts';
 
 import {
   updateWorkoutTemplate,
 } from '../../database/functions/templates';
+
+import {
+  saveWorkoutProgress,
+  loadWorkoutProgress,
+  clearWorkoutProgress,
+} from '../../GlobalStates/workout_progress'
 
 const ActiveWorkoutHome = ({ template_id }) => {
   const navigation = useNavigation();
@@ -60,10 +68,38 @@ const ActiveWorkoutHome = ({ template_id }) => {
   const [showMetricModal, setShowMetricModal] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
 
+  const [startTime, setStartTime] = useState(Date.now());
+const [elapsedTime, setElapsedTime] = useState(0);
+
+// Add this useEffect to track workout time
+useEffect(() => {
+  const timer = setInterval(() => {
+    setElapsedTime(Math.floor((Date.now() - startTime) / 60000)); // Convert to minutes
+  }, 60000); // Update every minute
+  
+  return () => clearInterval(timer);
+}, [startTime]);
+
   // 1) Load the template & exercises from DB
   useEffect(() => {
     async function loadActiveWorkout() {
       try {
+        // First check if we have saved progress
+        console.log('🔍 Checking for saved workout progress...');
+        const savedProgress = await loadWorkoutProgress();
+        
+        if (savedProgress) {
+          console.log('✅ Found saved progress, restoring state:', savedProgress);
+          setWorkoutData(savedProgress);
+          if (savedProgress.completedExercises) {
+            setCompletedExercises(new Set(savedProgress.completedExercises));
+          }
+          setLoading(false);
+          return; // Exit early if we found saved progress
+        }
+
+        console.log('⚠️ No saved progress found, loading fresh template...');
+        // If no saved progress, load fresh template
         const templateRows = await (await db).getAllAsync(
           `SELECT * FROM workout_templates WHERE id = ?`,
           [template_id]
@@ -109,14 +145,17 @@ const ActiveWorkoutHome = ({ template_id }) => {
             };
           });
 
-          setWorkoutData({
+          const freshWorkoutData = {
             template: templateRows[0],
             exercises: exercisesWithSets,
-          });
+          };
+          
+          console.log('✅ Loaded fresh template:', freshWorkoutData);
+          setWorkoutData(freshWorkoutData);
         }
         setLoading(false);
       } catch (error) {
-        console.error('Error loading active workout:', error);
+        console.error('❌ Error loading active workout:', error);
         setLoading(false);
       }
     }
@@ -208,31 +247,70 @@ const ActiveWorkoutHome = ({ template_id }) => {
     });
   }
 
+  // Calculate remaining sets and estimated time
+  const remainingSets = totalSets - completedSetsCount;
+  const MINUTES_PER_SET = 2; // Adjust this value based on your preference
+  const estimatedMinutesLeft = Math.max(0, Math.ceil(remainingSets * MINUTES_PER_SET));
+
   // Expand/collapse
   const toggleExpansion = (exerciseId) => {
     setExpandedExercise((prev) => (prev === exerciseId ? null : exerciseId));
   };
 
-  // When user changes a metric's value
+  // Add this helper function near the top of the component
+  const checkExerciseCompletion = (exercise) => {
+    return exercise.currentSets.every(setObj => 
+      Object.values(setObj).some(value => value !== '')
+    );
+  };
+
+  // Modify handleSetChange to properly save text input values
   const handleSetChange = (exerciseId, setIndex, metricLabel, text) => {
+    console.log(`💾 Saving: Exercise ${exerciseId}, Set ${setIndex}, ${metricLabel}: ${text}`);
+    
     setWorkoutData((prev) => {
       if (!prev) return prev;
-      const updated = prev.exercises.map((ex) => {
-        if (ex.id === exerciseId) {
-          const newSets = [...ex.currentSets];
-          newSets[setIndex] = {
-            ...newSets[setIndex],
-            [metricLabel]: text,
-          };
-          return { ...ex, currentSets: newSets };
-        }
-        return ex;
+      
+      // Deep clone the previous state to avoid mutation
+      const newWorkoutData = {
+        ...prev,
+        exercises: prev.exercises.map(exercise => {
+          if (exercise.id === exerciseId) {
+            // Update this specific exercise's sets
+            return {
+              ...exercise,
+              currentSets: exercise.currentSets.map((set, idx) => {
+                if (idx === setIndex) {
+                  // Update this specific set
+                  return {
+                    ...set,
+                    [metricLabel]: text
+                  };
+                }
+                return set;
+              })
+            };
+          }
+          return exercise;
+        })
+      };
+
+      console.log('📦 Saving workout data:', {
+        exerciseId,
+        setIndex,
+        metricLabel,
+        value: text,
+        fullData: newWorkoutData
       });
-      return { ...prev, exercises: updated };
+
+      // Save to AsyncStorage
+      saveWorkoutProgress(newWorkoutData)
+        .catch(error => console.error('❌ Save failed:', error));
+
+      return newWorkoutData;
     });
   };
 
-  // Add a new set
   const handleAddSet = (exerciseId) => {
     setWorkoutData((prev) => {
       if (!prev) return prev;
@@ -254,7 +332,7 @@ const ActiveWorkoutHome = ({ template_id }) => {
     });
   };
 
-  // Toggle finish/undo for an exercise
+  // Modify the handleFinishExercise function
   const handleFinishExercise = (exercise) => {
     setCompletedExercises((prev) => {
       const newSet = new Set(prev);
@@ -265,6 +343,15 @@ const ActiveWorkoutHome = ({ template_id }) => {
       }
       return newSet;
     });
+
+    // Find and expand next exercise
+    if (workoutData?.exercises) {
+      const currentIndex = workoutData.exercises.findIndex(ex => ex.id === exercise.id);
+      const nextExercise = workoutData.exercises[currentIndex + 1];
+      if (nextExercise) {
+        setExpandedExercise(nextExercise.id);
+      }
+    }
   };
 
   // Show "Add Metric" modal
@@ -412,9 +499,75 @@ const ActiveWorkoutHome = ({ template_id }) => {
     });
   };
 
-  // Finish entire workout
+  // Modify handleCancelWorkout
+  const handleCancelWorkout = async () => {
+    try {
+      // First, gather the data we need for the recap
+      const recapData = {
+        totalSets: 0,
+        completedSets: 0,
+        timeElapsed: elapsedTime,
+        exercises: workoutData?.exercises || []
+      };
+      
+      if (workoutData?.exercises) {
+        workoutData.exercises.forEach((ex) => {
+          recapData.totalSets += ex.currentSets.length;
+          ex.currentSets.forEach(set => {
+            if (Object.values(set).some(val => val !== '')) {
+              recapData.completedSets++;
+            }
+          });
+        });
+      }
+      
+      // Clear the progress
+      console.log('🧹 Clearing workout progress in handleCancelWorkout');
+      await clearWorkoutProgress();
+      
+      // Use the dedicated function to update app state
+      console.log('🔄 Setting exercising state to false and template ID to null');
+      await setExercisingState(false, null);
+      
+      // Double-check the state was updated
+      const state = await getExercisingState();
+      console.log('✅ New app state:', state);
+      
+      // Navigate to recap with the data we saved
+      if (navigation) {
+        navigation.navigate('Workouts');
+      }
+    } catch (error) {
+      console.error('Error cancelling workout:', error);
+    }
+  };
+
+  // Similarly update handleFinishWorkout
   const handleFinishWorkout = async () => {
     try {
+      // First, gather the data we need for the recap
+      const recapData = {
+        totalSets: 0,
+        completedSets: 0,
+        timeElapsed: elapsedTime,
+        exercises: workoutData?.exercises || []
+      };
+      
+      if (workoutData?.exercises) {
+        workoutData.exercises.forEach((ex) => {
+          recapData.totalSets += ex.currentSets.length;
+          ex.currentSets.forEach(set => {
+            if (Object.values(set).some(val => val !== '')) {
+              recapData.completedSets++;
+            }
+          });
+        });
+      }
+      
+      // Clear the progress
+      console.log('🧹 Clearing workout progress in handleFinishWorkout');
+      await clearWorkoutProgress();
+      
       // 1) Create a new session
       const sessionId = await createWorkoutSession(
         template_id,
@@ -422,7 +575,8 @@ const ActiveWorkoutHome = ({ template_id }) => {
         new Date().toISOString()
       );
 
-      console.log("sessionId", sessionId)
+      console.log("sessionId", sessionId);
+      
       // 2) Insert sets
       const sessionExercises = await (await db).getAllAsync(`
         SELECT * FROM session_exercises WHERE workout_session_id = ?
@@ -477,32 +631,60 @@ const ActiveWorkoutHome = ({ template_id }) => {
 
       await updateWorkoutTemplate(template_id, updatedExercisesForTemplate);
 
-      // 5) not exercising
+      // 5) not exercising - use the dedicated function
+      console.log('🔄 Setting exercising state to false and template ID to null');
       await setExercisingState(false, null);
-
-      // 6) done
-      Alert.alert('Workout Finished', 'Your workout has been completed.');
-      if (navigation) navigation.navigate('Home');
+      
+      // Double-check the state was updated
+      const state = await getExercisingState();
+      console.log('✅ New app state:', state);
+      
+      // Navigate to recap with the data we saved
+      if (navigation) {
+        navigation.navigate('WorkoutRecap', { workoutData: recapData });
+      }
     } catch (error) {
       console.error('Error finishing workout:', error);
+      console.error('Error stack:', error.stack);
       Alert.alert('Error', 'Something went wrong finishing your workout.');
     }
   };
 
-  // Cancel entire workout
-  const handleCancelWorkout = async () => {
-    try {
-      await (await db).runAsync(`
-        UPDATE app_state
-        SET is_exercising = 0,
-            active_template_id = NULL
-      `);
-      Alert.alert('Workout Cancelled', 'Your workout has been cancelled.');
-      if (navigation) navigation.navigate('Home');
-    } catch (error) {
-      console.error('Error cancelling workout:', error);
-    }
-  };
+  // Update the useFocusEffect
+  useFocusEffect(
+    useCallback(() => {
+      const loadProgress = async () => {
+        try {
+          console.log('🔄 Screen focused - Loading saved progress');
+          const data = await loadWorkoutProgress();
+          if (data) {
+            console.log('📱 Restoring workout data to UI');
+            setWorkoutData(data);
+            if (data.completedExercises) {
+              setCompletedExercises(new Set(data.completedExercises));
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load workout progress:', error);
+        }
+      };
+      loadProgress();
+    }, [])
+  );
+
+  // Add cleanup when component unmounts
+  useEffect(() => {
+    return () => {
+      console.log('🔚 Component unmounting - Saving final state');
+      if (workoutData) {
+        saveWorkoutProgress({
+          ...workoutData,
+          completedExercises: Array.from(completedExercises),
+          lastUpdated: new Date().toISOString()
+        }).catch(error => console.error('Failed to save final state:', error));
+      }
+    };
+  }, [workoutData, completedExercises]);
 
   // Renders each exercise card
   const renderExerciseCard = (exercise) => {
@@ -571,7 +753,17 @@ const ActiveWorkoutHome = ({ template_id }) => {
               {exercise.name}
             </Text>
           </View>
-          <FontAwesomeIcon icon={rightIcon} size={16} color={isDark ? '#FFFFFF' : '#000000'} />
+          <View style={{
+            backgroundColor: isFinished ? "#EB9848" : (isDark ? '#FFFFFF' : '#000000'),
+            padding: 5,
+            borderRadius: 100
+          }}>
+            <FontAwesomeIcon 
+              icon={rightIcon} 
+              size={16} 
+              color={isFinished ? '#FFFFFF' : (isDark ? '#000000' : '#FFFFFF')} 
+            />
+          </View>
         </TouchableOpacity>
 
         {isExpanded && (
@@ -650,10 +842,9 @@ const ActiveWorkoutHome = ({ template_id }) => {
                       </View>
 
                       {exercise.activeMetrics.map((metric) => {
-                        const displayedLabel = metric.label || metric.label || 'Metric';
-                        // Show the "last time" value as placeholder if available
-                        const lastPlaceholder = lastSetObj[metric.label];
-                        const currentVal = setObj[metric.label] ?? '';
+                        const value = setObj[metric.label] || ''; // Get the saved value
+                        console.log(`🎯 Rendering input: Exercise ${exercise.id}, Set ${setIndex}, ${metric.label}: ${value}`);
+                        
                         return (
                           <TextInput
                             key={metric.label}
@@ -668,11 +859,9 @@ const ActiveWorkoutHome = ({ template_id }) => {
                                 borderRadius: 100,
                               },
                             ]}
-                            placeholder={
-                              lastPlaceholder != null ? String(lastPlaceholder) : displayedLabel
-                            }
+                            placeholder={lastSetObj[metric.label] != null ? String(lastSetObj[metric.label]) : metric.label}
                             placeholderTextColor="#666666"
-                            value={String(currentVal)}
+                            value={String(value)} // Ensure we're using the saved value
                             keyboardType={metric.type === 'number' ? 'numeric' : 'default'}
                             onChangeText={(text) => handleSetChange(exId, setIndex, metric.label, text)}
                           />
@@ -733,14 +922,14 @@ const ActiveWorkoutHome = ({ template_id }) => {
       <WorkoutProgressCard
         completedSets={completedSetsCount}
         totalSets={totalSets}
-        minutesLeft={6}
+        minutesLeft={estimatedMinutesLeft}
       />
 
       {/* Render all exercises */}
       {workoutData?.exercises.map((exercise) => renderExerciseCard(exercise))}
 
       {/* Bottom Buttons */}
-      <View style={[globalStyles.flexRowBetween, { marginVertical: 20 }]}>
+      <View style={[globalStyles.flexRowBetween, { marginVertical: 20, marginBottom: 100 }]}>
         <TouchableOpacity
           style={[
             globalStyles.button,
