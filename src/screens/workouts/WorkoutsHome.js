@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Modal, 
   Alert, 
@@ -6,45 +6,77 @@ import {
   Text, 
   ScrollView, 
   TouchableOpacity, 
-  useColorScheme, 
-  Dimensions 
+  useColorScheme,
+  ImageBackground,
+  Dimensions
 } from 'react-native';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import { faChevronRight, faPlus } from "@fortawesome/free-solid-svg-icons";
-import * as SQLite from "expo-sqlite";
-
-// If you have a single global DB instance from your db.js:
 import { 
-  createWorkoutSession,
   setExercisingState
 } from "../../database/functions/workouts"
 import { getWorkoutTemplates } from '../../database/functions/templates';
 import { db } from "../../database/db"
+import muscleImageMapping from '../../utils/muscleImageMapping';
 
 export default function WorkoutHome() {
-
-
-
-
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
+  // Track which image index to use for each muscle group
+  const muscleImageCountersRef = useRef({});
+
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';
   const navigation = useNavigation();
 
-  /**
-   * Load the workout templates from the "new" schema:
-   *   SELECT t.*, COUNT(e.id) as exercise_count
-   *   FROM workout_templates t
-   *   LEFT JOIN template_exercises e ON t.id = e.workout_template_id
-   *   GROUP BY t.id
-   *   ORDER BY t.created_at DESC
-   */
+  // Define muscle group categories
+  const muscleGroups = {
+    back: ["lower back", "upper back", "back", "rhomboids", "trapezius", "latissimus dorsi"],
+    biceps: ["biceps", "brachialis"],
+    chest: ["chest", "upper chest"],
+    triceps: ["triceps"],
+    legsUpper: ["quadriceps", "hamstrings", "glutes", "inner thighs", "groin", "hip flexors"],
+    legsLower: ["calves", "soleus", "shins"],
+    core: ["core", "obliques", "abdominals", "lower abs"],
+    shoulders: ["shoulders", "deltoids", "rear deltoids", "rotator cuff"],
+    forearms: ["forearms", "wrists", "wrist extensors", "wrist flexors", "grip muscles", "hands"],
+    feetAnkles: ["ankles", "ankle stabilizers", "feet"],
+    neck: ["sternocleidomastoid"]
+  };
+
+  // Function to get the main muscle group category from a specific muscle
+  const getMuscleGroupCategory = (muscleName) => {
+    if (!muscleName) return 'default';
+    
+    for (const [category, muscles] of Object.entries(muscleGroups)) {
+      if (muscles.some(muscle => muscleName.toLowerCase().includes(muscle.toLowerCase()))) {
+        return category;
+      }
+    }
+    return 'default'; // Fallback category
+  };
+
+  // Function to get the next image index for a muscle group
+  const getNextImageIndex = (muscleCategory) => {
+    const currentCount = muscleImageCountersRef.current[muscleCategory] || 0;
+    const nextCount = currentCount + 1;
+    
+    // Update the counter in the ref
+    muscleImageCountersRef.current = {
+      ...muscleImageCountersRef.current,
+      [muscleCategory]: nextCount
+    };
+    
+    // Return index between 1-3 based on count
+    return ((nextCount - 1) % 3) + 1;
+  };
+
+  // Load templates function
   const loadTemplates = async () => {
     try {
       if (!db) {
@@ -77,10 +109,135 @@ export default function WorkoutHome() {
   );
 
   /**
-   * Start a workout session from the selected template
-   * (assuming you want to create a new session).
-   * If you do not want to create a session, you can remove or replace this.
+   * Render each template card
    */
+  const renderTemplateCard = (template) => {
+    // Parse and flatten all muscle groups from the concatenated string
+    const allMuscles = template.all_muscle_groups
+      ? template.all_muscle_groups
+          .split('],[')
+          .map(group => group.replace(/[\[\]"]/g, '').split(','))
+          .flat()
+      : [];
+    
+    // Remove duplicates
+    const uniqueMuscles = [...new Set(allMuscles)];
+    
+    // Count occurrences of each muscle group
+    const muscleCounts = {};
+    allMuscles.forEach(muscle => {
+      if (muscle && muscle.trim() !== '') {
+        muscleCounts[muscle] = (muscleCounts[muscle] || 0) + 1;
+      }
+    });
+    
+    // Find the most trained muscle group
+    let mostTrainedMuscle = '';
+    let highestCount = 0;
+    
+    Object.entries(muscleCounts).forEach(([muscle, count]) => {
+      if (count > highestCount && muscle.trim() !== '') {
+        mostTrainedMuscle = muscle;
+        highestCount = count;
+      }
+    });
+    
+    // Get the muscle category and image index
+    const muscleCategory = getMuscleGroupCategory(mostTrainedMuscle);
+    const imageIndex = getNextImageIndex(muscleCategory);
+    
+    // Get the image key
+    const imageKey = `${muscleCategory}${imageIndex}`;
+    
+    // Get the image from our mapping
+    const backgroundImage = muscleImageMapping[imageKey] || muscleImageMapping.default;
+
+    return (
+      <TouchableOpacity
+        key={template.id}
+        onPress={() => {
+          setSelectedTemplate(template);
+          setIsModalVisible(true);
+        }}
+      >
+        <ImageBackground
+          source={backgroundImage}
+          style={{
+            marginBottom: 15,
+            width: '100%',
+            width: '100%',
+            borderRadius: 12,
+            overflow: 'hidden',
+            justifyContent: 'space-between',
+          }}
+          imageStyle={{ 
+            borderRadius: 12,
+            width: '100%',
+            height: '100%',
+            resizeMode: 'cover',
+          }}
+        >
+          {/* Dark overlay for better text readability */}
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: 12,
+            }}
+          />
+
+          <View style={[globalStyles.flexRowBetween, {padding: 20}]}>
+            <View>
+              <Text
+                style={[
+                  globalStyles.fontWeightBold,
+                  globalStyles.fontSizeLarge,
+                  { color: '#FFFFFF' }
+                ]}
+              >
+                {template.name ? template.name : "Unnamed workout"}
+              </Text>
+              <Text
+                style={[
+                  globalStyles.fontSizeSmall,
+                  { marginTop: 5, color: '#FFFFFF' }
+                ]}
+              >
+                {template.exercise_count} {template.exercise_count === 1 ? 'exercise' : 'exercises'}
+              </Text>
+              <View style={[globalStyles.flexRow, { flexWrap: 'wrap', marginTop: 10, gap: 5 }]}>
+                {uniqueMuscles.slice(0, 3).map((muscle, index) => (
+                  <View key={index} style={globalStyles.pill}>
+                    <Text style={{ color:'#FFFFFF', fontSize:10, fontWeight:"bold"}}>
+                      {muscle}
+                    </Text>
+                  </View>
+                ))}
+                {uniqueMuscles.length > 3 && (
+                  <View style={globalStyles.pill}>
+                    <Text style={{ color:'#FFFFFF', fontSize:10, fontWeight:"bold"}}>
+                      +{uniqueMuscles.length - 3} more
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            <FontAwesomeIcon
+              icon={faChevronRight}
+              size={20}
+              color="#FFFFFF"
+            />
+          </View>
+        </ImageBackground>
+      </TouchableOpacity>
+    );
+  };
+
+  // Handle start workout
   const handleStartWorkout = async (template) => {
     try {
       await setExercisingState(true, template.id);
@@ -92,9 +249,7 @@ export default function WorkoutHome() {
     }
   };
 
-  /**
-   * Delete the entire template from DB
-   */
+  // Handle delete template
   const handleDeleteTemplate = async (template) => {
     try {
       (await db).runAsync(
@@ -107,75 +262,6 @@ export default function WorkoutHome() {
       console.error('Error deleting template:', error);
     }
   };
-
-  /**
-   * Render each template card
-   */
-  const renderTemplateCard = (template) => {
-      // Parse and flatten all muscle groups from the concatenated string
-      const allMuscles = template.all_muscle_groups
-        ? template.all_muscle_groups
-            .split('],[')
-            .map(group => group.replace(/[\[\]"]/g, '').split(','))
-            .flat()
-        : [];
-      
-      // Remove duplicates
-      const uniqueMuscles = [...new Set(allMuscles)];
-  
-      return (
-        <TouchableOpacity
-          key={template.id}
-          style={[
-            globalStyles.workoutCard,
-            {
-              marginBottom: 15,
-              padding: 20,
-              width: '100%',
-            }
-          ]}
-          onPress={() => {
-            setSelectedTemplate(template);
-            setIsModalVisible(true);
-          }}
-        >
-          <View style={globalStyles.flexRowBetween}>
-            <View>
-              <Text
-                style={[
-                  globalStyles.fontWeightBold,
-                  globalStyles.fontSizeLarge,
-                ]}
-              >
-                {template.name}
-              </Text>
-              <Text
-                style={[
-                  globalStyles.fontSizeSmall,
-                  { marginTop: 5 }
-                ]}
-              >
-                {template.exercise_count} {template.exercise_count === 1 ? 'exercise' : 'exercises'}
-              </Text>
-              <View style={[globalStyles.flexRow, { flexWrap: 'wrap', marginTop: 10, gap: 5 }]}>
-                {uniqueMuscles.map((muscle, index) => (
-                  <View key={index} style={globalStyles.pill}>
-                    <Text style={{ color:'#FFFFFF', fontSize:10, fontWeight:"bold"}}>
-                      {muscle}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-            <FontAwesomeIcon
-              icon={faChevronRight}
-              size={20}
-              color={isDark ? '#FFFFFF' : '#000000'}
-            />
-          </View>
-        </TouchableOpacity>
-      );
-    };
 
   return (
     <View style={[globalStyles.container]}>
@@ -241,10 +327,9 @@ export default function WorkoutHome() {
               globalStyles.modalTitle,
               { color: isDark ? '#FFFFFF' : '#000000', marginBottom: 15 }
             ]}>
-              {selectedTemplate?.name}
+              {selectedTemplate?.name ? selectedTemplate?.name : "Unnamed workout"}
             </Text>
             
-            {/* Start Workout => create a session */}
             <TouchableOpacity
               style={[globalStyles.primaryButton, { marginBottom: 10 }]}
               onPress={() => handleStartWorkout(selectedTemplate)}
@@ -252,7 +337,6 @@ export default function WorkoutHome() {
               <Text style={globalStyles.buttonText}>Start Workout</Text>
             </TouchableOpacity>
 
-            {/* Edit => navigate to an edit screen, if you have one */}
             <TouchableOpacity
               style={[globalStyles.secondaryButton, { marginBottom: 10 }]}
               onPress={() => {
@@ -263,7 +347,6 @@ export default function WorkoutHome() {
               <Text style={globalStyles.buttonText}>Edit Template</Text>
             </TouchableOpacity>
 
-            {/* Delete => remove from DB */}
             <TouchableOpacity
               style={[globalStyles.dangerButton, { marginBottom: 10 }]}
               onPress={() => {

@@ -9,17 +9,20 @@ import {
 import { styles } from '../../theme/styles';
 import { useNavigation } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faCheckCircle, faClock, faDumbbell } from '@fortawesome/free-solid-svg-icons';
+import { faCheckCircle, faClock, faDumbbell, faXmarkCircle } from '@fortawesome/free-solid-svg-icons';
 
 const WorkoutRecap = ({ route }) => {
   const navigation = useNavigation();
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';
   const [recapData, setRecapData] = useState(null);
-
+  const [cancelled, setCancelled] = useState(false);
   useEffect(() => {
     if (route.params?.workoutData) {
       setRecapData(route.params.workoutData);
+    }
+    if (route.params?.cancelled) {
+      setCancelled(route.params.cancelled);
     }
   }, [route.params]);
 
@@ -55,9 +58,13 @@ const WorkoutRecap = ({ route }) => {
         {/* Header */}
         <View style={[globalStyles.card, { marginBottom: 20, padding: 20, alignItems: 'center' }]}>
           <Text style={[globalStyles.fontSizeExtraLarge, globalStyles.fontWeightBold, { marginBottom: 10 }]}>
-            Workout Complete!
+            {cancelled ? "Workout Cancelled" : "Workout Complete!"}
           </Text>
-          <FontAwesomeIcon icon={faCheckCircle} size={60} color="#4CAF50" />
+          {cancelled ? (
+            <FontAwesomeIcon icon={faXmarkCircle} size={60} color="#FF0000" />
+          ) : (
+            <FontAwesomeIcon icon={faCheckCircle} size={60} color="#4CAF50" />
+          )}
         </View>
 
         {/* Stats Overview */}

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getExercisingState } from '../database/functions/workouts';
 
 // Keys for different storage items
 const STORAGE_KEYS = {
@@ -8,6 +9,15 @@ const STORAGE_KEYS = {
 // Save workout progress
 export const saveWorkoutProgress = async (data) => {
   try {
+    // Check app state before saving
+    const { isExercising } = await getExercisingState();
+    
+    // Only save progress if we're actually exercising
+    if (!isExercising) {
+      console.log('⚠️ Not saving workout progress because app state indicates not exercising');
+      return;
+    }
+    
     console.log('📝 Saving workout progress:', data);
     await AsyncStorage.setItem(STORAGE_KEYS.WORKOUT_PROGRESS, JSON.stringify(data));
     console.log('✅ Successfully saved workout progress');

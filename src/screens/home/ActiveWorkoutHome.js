@@ -524,7 +524,7 @@ useEffect(() => {
       
       // Navigate to recap with the data we saved
       if (navigation) {
-        navigation.navigate('Workouts');
+        navigation.navigate('WorkoutRecap', { workoutData: recapData, cancelled: true });
       }
     } catch (error) {
       console.error('Error cancelling workout:', error);
@@ -708,7 +708,7 @@ useEffect(() => {
   }
 
   return (
-    <ScrollView style={globalStyles.container}>
+    <ScrollView style={[globalStyles.container, {marginTop:10,}]}>
       <WorkoutProgressCard
         completedSets={completedSetsCount}
         totalSets={totalSets}
