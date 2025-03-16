@@ -28,7 +28,7 @@ import { AddMetricModal } from "../../components/AddMetricModal";
 import { SaveWorkoutModal } from "../../components/SaveWorkoutModal";
 import { insertWorkoutIntoDB } from "../../database/functions/workouts";
 import ExerciseGifImage from "../../components/ExerciseGifImage";
-import { createWorkoutTemplate } from "../../database/functions/templates";
+import { createWorkoutTemplate, updateWorkoutTemplate } from "../../database/functions/templates";
 
 // Swipe to delete dimension
 const RIGHT_ACTION_WIDTH = 75;
@@ -73,6 +73,8 @@ export default function SelectedExercisesManager({
   setWorkoutName,
   onAddExercise,
   onDeleteExercise,
+  isEditing = false,
+  templateId = null,
 }) {
   const navigation = useNavigation();
   const globalStyles = styles();
@@ -113,22 +115,43 @@ export default function SelectedExercisesManager({
     };
   };
 
+  const onUpdateTemplate = async (name, orderedExercises, exerciseData) => {
+    try {
+      await updateWorkoutTemplate(templateId, orderedExercises, name, exerciseData);
+    } catch (error) {
+      console.error("Error updating workout template:", error);
+    }
+  };
+
   const handleSaveWorkout = async (name, orderedExercises) => {
     try {
-      const templateData = finaliseTemplateDataShape(name, orderedExercises, exerciseData);
-      
-      // Call the database function
-      const templateId = await createWorkoutTemplate(
-        templateData.name, 
-        templateData.exercises
-      );
+      if (isEditing && templateId && onUpdateTemplate) {
+        // Handle update - use the same data preparation as for create
+        const templateData = finaliseTemplateDataShape(name, orderedExercises, exerciseData);
+        
+        // Call the update function with properly formatted data
+        await updateWorkoutTemplate(
+          templateId, 
+          templateData.exercises,
+          templateData.name
+        );
+      } else {
+        // Handle create new (existing code)
+        const templateData = finaliseTemplateDataShape(name, orderedExercises, exerciseData);
+        
+        // Call the database function
+        const templateId = await createWorkoutTemplate(
+          templateData.name, 
+          templateData.exercises
+        );
+      }
 
       setShowSaveModal(false);
-      Alert.alert("Success", "Workout template saved!");
+      Alert.alert("Success", isEditing ? "Workout template updated!" : "Workout template saved!");
       navigation.navigate("Home");
     } catch (error) {
-      console.error("Error saving workout template:", error);
-      Alert.alert("Error", "Failed to save workout template");
+      console.error(isEditing ? "Error updating workout template:" : "Error saving workout template:", error);
+      Alert.alert("Error", isEditing ? "Failed to update workout template" : "Failed to save workout template");
     }
   };
 
@@ -248,13 +271,13 @@ export default function SelectedExercisesManager({
                       [exercise.name]: newData,
                     }));
                   }}
-                  setSelectedExerciseId={setSelectedExerciseId} // Pass the setter to the child
+                  setSelectedExerciseId={setSelectedExerciseId}
                 />
               );
             })}
           </ScrollView>
 
-          {/* Save Workout button */}
+          {/* Save/Update Workout button */}
           <TouchableOpacity
             style={[
               globalStyles.primaryButton,
@@ -267,7 +290,9 @@ export default function SelectedExercisesManager({
             ]}
             onPress={() => setShowSaveModal(true)}
           >
-            <Text style={[globalStyles.fontWeightSemiBold, { color: "#FFF" }]}>Save workout</Text>
+            <Text style={[globalStyles.fontWeightSemiBold, { color: "#FFF" }]}>
+              {isEditing ? "Update workout" : "Save workout"}
+            </Text>
             <FontAwesomeIcon icon={faChevronRight} color="#FFF" />
           </TouchableOpacity>
         </>
@@ -280,6 +305,7 @@ export default function SelectedExercisesManager({
         workoutName={workoutName}
         onSave={handleSaveWorkout}
         exerciseData={exerciseData}
+        isEditing={isEditing}
       />
 
       <AddMetricModal
@@ -301,8 +327,9 @@ function ExerciseItem({
   onDeleteExercise,
   exerciseData,
   onUpdateData,
-  setSelectedExerciseId, // receive the setter as a prop
+  setSelectedExerciseId,
 }) {
+
   const globalStyles = styles();
   const isDark = useColorScheme() === "dark";
   const [showMetricModal, setShowMetricModal] = useState(false);
@@ -438,7 +465,7 @@ function ExerciseItem({
           ]}
         >
           <View style={globalStyles.flexRow}>
-            {exercise.gifUrl && (
+            {exercise.gifUrl ? (
               <ExerciseGifImage
                 style={{
                   width: 50,
@@ -447,8 +474,20 @@ function ExerciseItem({
                   marginRight: 10,
                 }}
                 url={exercise.gifUrl}
+                exerciseName={exercise.name}
               />
-            )}
+            ) : exercise.name ? (
+              <ExerciseGifImage
+                style={{
+                  width: 50,
+                  height: 50,
+                  borderRadius: 8,
+                  marginRight: 10,
+                }}
+                exerciseName={exercise.name}
+              />
+            ) 
+            : null}
             <Text
               style={[
                 globalStyles.fontWeightBold,

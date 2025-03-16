@@ -15,6 +15,8 @@ export const SaveWorkoutModal = ({
   exercises, 
   workoutName,
   onSave,
+  exerciseData,
+  isEditing = false
 }) => {
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';
@@ -105,7 +107,7 @@ export const SaveWorkoutModal = ({
                 globalStyles.modalTitle,
                 { color: isDark ? '#FFFFFF' : '#000000', marginBottom: 15 }
               ]}>
-                Save Workout
+                {isEditing ? "Update Workout" : "Save Workout"}
               </Text>
               <TextInput
                 value={name}
@@ -132,7 +134,9 @@ export const SaveWorkoutModal = ({
                   style={[globalStyles.primaryButton, { flex: 1 }]}
                   onPress={handleFinalSave}
                 >
-                  <Text style={globalStyles.buttonText}>Save Workout</Text>
+                  <Text style={globalStyles.buttonText}>
+                    {isEditing ? "Update Workout" : "Save Workout"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </>

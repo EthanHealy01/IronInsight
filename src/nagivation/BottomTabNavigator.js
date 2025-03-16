@@ -40,9 +40,18 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
   
             if (!event.defaultPrevented) {
               if (isFocused) {
-                // Tab is already focused—navigate back to the named root screen
+                // Tab is already focused—navigate to the root screen and force a refresh
                 const rootName = rootScreens[route.name];
-                navigation.navigate(route.name, { screen: rootName });
+                navigation.reset({
+                  index: 0,
+                  routes: [{ 
+                    name: route.name, 
+                    params: { 
+                      screen: rootName,
+                      refresh: Date.now() // Add timestamp to force refresh
+                    } 
+                  }],
+                });
               } else {
                 // Switch tabs normally
                 navigation.navigate(route.name);

@@ -326,6 +326,14 @@ export const styles = () => {
             justifyContent: 'center',
             paddingVertical:10
         },
+        dangerButton: {
+            backgroundColor: '#FF3B30',
+            borderRadius:10,
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical:10
+        },
         buttonText: {
             color: '#FFFFFF',
             fontSize: 16,
@@ -334,6 +342,11 @@ export const styles = () => {
         workoutCard: {
             backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
             borderRadius: 10
+        },
+        modalTitle: {
+            fontSize: 20,
+            fontWeight: 'bold',
+            color: isDarkMode ? '#FFFFFF' : '#000000',
         }
     };
 };

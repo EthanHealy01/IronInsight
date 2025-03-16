@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 
-export default function workoutDetail({ route }) {
+export default function WorkoutDetail({ route }) {
    // e.g., 'weightTrends' or 'workoutFrequency'
 
   return (

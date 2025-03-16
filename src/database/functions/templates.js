@@ -14,6 +14,7 @@ import { db } from "../db";
  * }
  */
 export async function createWorkoutTemplate(templateName, exercises) {
+  console.log("Creating workout template:", templateName, exercises);
   try {
     // 1) Insert row in workout_templates
     const result = await (await db).runAsync(
@@ -67,30 +68,35 @@ export async function createWorkoutTemplate(templateName, exercises) {
  * Overwrite a workout template with new exercise data (including metrics).
  * We'll delete the old template_exercises rows and re-insert them.
  */
-export async function updateWorkoutTemplate(templateId, exercises) {
+export async function updateWorkoutTemplate(templateId, exercises, name) {
+  console.log("Updating workout template:", templateId, exercises, name);
   try {
-    // 1) Delete old rows
+    // 1) Update template name if provided
+    if (name) {
+      await (await db).runAsync(
+        `UPDATE workout_templates SET name = ? WHERE id = ?`,
+        [name, templateId]
+      );
+    }
+
+    // 2) Delete old rows
     await (await db).runAsync(
       `DELETE FROM template_exercises WHERE workout_template_id = ?`,
       [templateId]
     );
-
-    // 2) Insert new rows
+    
+    // 3) Insert each exercise - similar to createWorkoutTemplate
     for (const ex of exercises) {
       const {
         name,
         secondary_muscle_groups = [],
         metrics = [],
-        setsCount = 1
+        setsCount = 1,
       } = ex;
 
-      const formattedMetrics = metrics.map(m => ({
-        label: m.label || m.name,
-        type: m.type || 'number',
-        value: m.value
-      }));
-
-      const metricsJson = JSON.stringify(formattedMetrics);
+      // Build JSON for metrics
+      const metricsJson = JSON.stringify(metrics);
+      console.log(`Inserting exercise ${name} with metrics: ${metricsJson}, sets: ${setsCount}`);
 
       await (await db).runAsync(
         `INSERT INTO template_exercises (
@@ -112,14 +118,14 @@ export async function updateWorkoutTemplate(templateId, exercises) {
       );
     }
 
-    // 3) Create initial workout session with the entered data
+    // 4) Create initial workout session with the entered data
     const sessionId = await createSessionForTemplate(
       templateId,
       null,
       new Date().toISOString()
     );
 
-    // 4) For each exercise, save its sets data
+    // 5) For each exercise, save its sets data
     for (const ex of exercises) {
       if (ex.sets && ex.sets.length > 0) {
         const sessionExercise = await (await db).getAsync(
@@ -214,6 +220,20 @@ async function createSessionForTemplate(templateId, userId, sessionDate) {
   );
 
   return sessionId;
+}
+
+// Helper function to get template exercises with all details
+export async function getTemplateExercises(templateId) {
+  try {
+    return (await db).getAllAsync(`
+      SELECT * FROM template_exercises 
+      WHERE workout_template_id = ?
+      ORDER BY id
+    `, [templateId]);
+  } catch (error) {
+    console.error("Error fetching template exercises:", error);
+    throw error;
+  }
 }
 
 // Local version of insertSetForExercise

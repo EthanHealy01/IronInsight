@@ -8,7 +8,6 @@ import {
   TouchableOpacity, 
   useColorScheme,
   ImageBackground,
-  Dimensions
 } from 'react-native';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
@@ -102,16 +101,23 @@ export default function WorkoutHome() {
   // Keep the useFocusEffect for refreshing
   useFocusEffect(
     React.useCallback(() => {
+      // Reset modal state when screen comes into focus
+      setIsModalVisible(false);
+      
       if (db) {
         loadTemplates();
       }
+      
+      return () => {
+        // Clean up when leaving the screen
+      };
     }, [])
   );
 
   /**
    * Render each template card
    */
-  const renderTemplateCard = (template) => {
+  const renderTemplateCard = (template, index) => {
     // Parse and flatten all muscle groups from the concatenated string
     const allMuscles = template.all_muscle_groups
       ? template.all_muscle_groups
@@ -144,24 +150,30 @@ export default function WorkoutHome() {
     
     // Get the muscle category and image index
     const muscleCategory = getMuscleGroupCategory(mostTrainedMuscle);
-    const imageIndex = getNextImageIndex(muscleCategory);
     
-    // Get the image key
-    const imageKey = `${muscleCategory}${imageIndex}`;
-    
-    // Get the image from our mapping
-    const backgroundImage = muscleImageMapping[imageKey] || muscleImageMapping.default;
+    const getModuloIndexImage = (index) => {
+      return index % 3;
+    }
+
+    const getBackgroundImage = () => {
+      if (index === 0 && muscleCategory === "default") {
+      return muscleImageMapping.default
+      }
+      const imageIndex = getModuloIndexImage(index);
+      const imageKey = `${muscleCategory}${imageIndex}`;
+      return muscleImageMapping[imageKey] || muscleImageMapping.default;
+    }
 
     return (
       <TouchableOpacity
-        key={template.id}
+        key={index}
         onPress={() => {
           setSelectedTemplate(template);
           setIsModalVisible(true);
         }}
       >
         <ImageBackground
-          source={backgroundImage}
+          source={getBackgroundImage()}
           style={{
             marginBottom: 15,
             width: '100%',
@@ -263,6 +275,17 @@ export default function WorkoutHome() {
     }
   };
 
+  const openConfirmationModal = (title, message, onConfirm) => {
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: onConfirm }
+      ]
+    );
+  };
+
   return (
     <View style={[globalStyles.container]}>
       <View style={[globalStyles.flexRowBetween, { marginBottom: 20 }]}>
@@ -272,7 +295,7 @@ export default function WorkoutHome() {
             globalStyles.fontSizeLarge,
           ]}
         >
-          Your Workout Templates
+          Your Workouts
         </Text>
         <TouchableOpacity
           style={globalStyles.flexRow}
@@ -299,7 +322,11 @@ export default function WorkoutHome() {
         </Text>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
-          {templates.map(renderTemplateCard)}
+          {templates.map((template, index)=>{
+            return (
+              renderTemplateCard(template, index)
+            )
+          })}
         </ScrollView>
       )}
 
@@ -341,30 +368,22 @@ export default function WorkoutHome() {
               style={[globalStyles.secondaryButton, { marginBottom: 10 }]}
               onPress={() => {
                 setIsModalVisible(false);
-                navigation.navigate('EditWorkout', { template: selectedTemplate });
+                navigation.navigate('CreateWorkout', { template: selectedTemplate, isEditing: true });
               }}
             >
-              <Text style={globalStyles.buttonText}>Edit Template</Text>
+              <Text style={globalStyles.buttonText}>Edit Workout</Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              style={[globalStyles.dangerButton, { marginBottom: 10 }]}
+              style={[globalStyles.dangerButton, { marginVertical: 10 }]}
               onPress={() => {
-                Alert.alert(
-                  'Delete Workout Template',
+                openConfirmationModal(
+                  'Delete Workout Workout',
                   'Are you sure you want to delete this template?',
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { 
-                      text: 'Delete',
-                      style: 'destructive',
-                      onPress: () => handleDeleteTemplate(selectedTemplate)
-                    }
-                  ]
+                  () => handleDeleteTemplate(selectedTemplate)
                 );
               }}
             >
-              <Text style={globalStyles.buttonText}>Delete Template</Text>
+              <Text style={globalStyles.buttonText}>Delete Workout</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

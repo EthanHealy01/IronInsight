@@ -117,14 +117,33 @@ async function createTablesIfNotExist(database) {
     )
   `);
 
-  // Check if app_state exists and initialize if needed
-  const result = await database.getAllAsync(`
-    SELECT is_exercising, active_template_id 
-    FROM app_state 
-    LIMIT 1
+  // Check if app_state has any rows and insert if empty
+  const countResult = await database.getAllAsync(`
+    SELECT COUNT(*) as count FROM app_state
   `);
   
-  if (!result || result.length === 0) {
+  if (!countResult || countResult.length === 0 || countResult[0].count === 0) {
+    await database.execAsync(`
+      INSERT INTO app_state (is_exercising, active_template_id) 
+      VALUES (0, NULL)
+    `);
+  }
+  
+  // Add this code to fix the issue
+  // Check if is_exercising column exists in app_state table
+  try {
+    await database.execAsync(`SELECT is_exercising FROM app_state LIMIT 1`);
+  } catch (error) {
+    // Column doesn't exist, recreate the table
+    console.log("Fixing app_state table schema...");
+    await database.execAsync(`DROP TABLE IF EXISTS app_state`);
+    await database.execAsync(`
+      CREATE TABLE app_state (
+        is_exercising INTEGER DEFAULT 0,
+        active_template_id INTEGER DEFAULT NULL,
+        FOREIGN KEY (active_template_id) REFERENCES workout_templates(id)
+      )
+    `);
     await database.execAsync(`
       INSERT INTO app_state (is_exercising, active_template_id) 
       VALUES (0, NULL)
