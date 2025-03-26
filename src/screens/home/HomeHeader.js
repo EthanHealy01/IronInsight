@@ -4,10 +4,12 @@ import { Image, Text, TouchableOpacity, useColorScheme, View } from "react-nativ
 import { styles } from "../../theme/styles";
 import mephoto from "../../static_assets/me.png"
 import { faBell, faBellSlash } from "@fortawesome/free-solid-svg-icons";
+import { useNavigation } from "@react-navigation/native";
 
-const HomeHeader = ({ navigation }) => {
+const HomeHeader = () => {
   const globalStyles = styles();
   const isDarkMode = useColorScheme() === 'dark';
+  const navigation = useNavigation()
   const goToNotifications = () => {
     navigation.navigate("Notifications");
   }
@@ -25,13 +27,13 @@ const HomeHeader = ({ navigation }) => {
           <Text style={[globalStyles.fontSizeExtraLarge, globalStyles.fontWeightSemiBold]}>Let's get to work!</Text>
         </View>
         </View>
-        <TouchableOpacity onPress={()=> goToNotifications()} >
+        {/* <TouchableOpacity onPress={()=> goToNotifications()} >
         <FontAwesomeIcon
           icon={faBell}
           size={24}
           color={isDarkMode ? "#FFFFFF" : "#000000"}
         />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     )
 }

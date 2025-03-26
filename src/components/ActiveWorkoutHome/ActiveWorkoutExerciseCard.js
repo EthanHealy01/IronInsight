@@ -31,6 +31,7 @@ const ActiveWorkoutExerciseCard = ({
   handleAddMetricClick,
   handleRemoveMetric,
   handleAutofillSet,
+  handleExerciseGifClick,
 }) => {
   const exId = exercise.id;
   const isFinished = completedExercises.has(exId);
@@ -71,15 +72,17 @@ const ActiveWorkoutExerciseCard = ({
         ]}
       >
         <View style={globalStyles.flexRow}>
-          <ExerciseGifImage
-            style={{
-              width: 50,
-              height: 50,
-              borderRadius: 8,
-              marginRight: 10,
-            }}
-            exerciseName={exercise.name}
-          />
+          <TouchableOpacity onPress={() => handleExerciseGifClick(exercise.name)}>
+            <ExerciseGifImage
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 8,
+                marginRight: 10,
+              }}
+              exerciseName={exercise.name}
+            />
+          </TouchableOpacity>
           <Text
             style={[
               globalStyles.fontWeightBold,
@@ -98,7 +101,7 @@ const ActiveWorkoutExerciseCard = ({
           </Text>
         </View>
         <View style={{
-          backgroundColor: isFinished ? "#EB9848" : (isDark ? '#FFFFFF' : '#000000'),
+          backgroundColor: isFinished ? "#F5A623" : (isDark ? '#FFFFFF' : '#000000'),
           padding: 5,
           borderRadius: 100
         }}>

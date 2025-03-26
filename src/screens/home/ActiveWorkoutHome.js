@@ -11,6 +11,9 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { db } from '../../database/db';
 import { styles } from '../../theme/styles';
 import { AVAILABLE_METRICS } from '../../database/workout_metrics';
+import { SheetManager, registerSheet } from "react-native-actions-sheet";
+import ExerciseSheet from "../../components/ExerciseSheet";
+import static_workouts from "../../database/static_workouts.json";
 
 import { AddMetricModal } from '../../components/AddMetricModal';
 import WorkoutProgressCard from '../../components/WorkoutProgressCard';
@@ -34,6 +37,9 @@ import {
 } from '../../GlobalStates/workout_progress'
 
 import ActiveWorkoutExerciseCard from '../../components/ActiveWorkoutHome/ActiveWorkoutExerciseCard';
+
+// Register the ActionSheet
+registerSheet("exercise-sheet", ExerciseSheet);
 
 const ActiveWorkoutHome = ({ template_id }) => {
   const navigation = useNavigation();
@@ -207,11 +213,9 @@ useEffect(() => {
       latestSessionRows.sort((a, b) => a.id - b.id);
 
       const setsArray = latestSessionRows.map((r) => {
-        const custom = JSON.parse(r.custom_metrics || "{}");
+        const custom = JSON.parse(r.metrics || "{}");
         // The standard columns
         const singleSet = {
-          reps: r.reps_or_time || "",
-          weight: r.weight || "",
           ...custom
         };
         return singleSet;
@@ -578,8 +582,6 @@ useEffect(() => {
         if (!match) continue;
 
         for (const setObj of localExercise.currentSets) {
-          const repsOrTime = setObj.reps || setObj.time || null;
-          const weight = setObj.weight || null;
           const customMetrics = {};
 
           for (const key of Object.keys(setObj)) {
@@ -588,13 +590,10 @@ useEffect(() => {
             }
           }
 
-          const hasSomeData =
-            repsOrTime || weight || Object.keys(customMetrics).length > 0;
+          const hasSomeData = Object.keys(customMetrics).length > 0;
           if (hasSomeData) {
             await insertSetForExercise(
               match.id,
-              repsOrTime,
-              weight,
               customMetrics
             );
           }
@@ -675,6 +674,20 @@ useEffect(() => {
     };
   }, [workoutData, completedExercises]);
 
+  // Add this function to handle exercise GIF clicks
+  const handleExerciseGifClick = (exerciseName) => {
+    // Find the exercise in static_workouts by name
+    const exercise = static_workouts.find(ex => ex.name === exerciseName);
+    
+    if (exercise) {
+      SheetManager.show("exercise-sheet", {
+        payload: { exercise },
+      });
+    } else {
+      console.warn(`Exercise not found: ${exerciseName}`);
+    }
+  };
+
   // Renders each exercise card
   const renderExerciseCard = (exercise) => {
     return (
@@ -693,6 +706,7 @@ useEffect(() => {
         handleAddMetricClick={handleAddMetricClick}
         handleRemoveMetric={handleRemoveMetric}
         handleAutofillSet={handleAutofillSet}
+        handleExerciseGifClick={handleExerciseGifClick}
       />
     );
   };

@@ -56,16 +56,14 @@ export async function createWorkoutSession(templateId, userId, sessionDate) {
 /**
  * Insert a set for a given session exercise
  */
-export async function insertSetForExercise(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
+export async function insertSetForExercise(sessionExerciseId, customMetrics = {}) {
   try {
     await (await db).runAsync(
       `INSERT INTO session_sets (
-        session_exercise_id, reps_or_time, weight, custom_metrics, created_at
-      ) VALUES (?, ?, ?, ?, ?)`,
+        session_exercise_id, metrics, created_at
+      ) VALUES (?, ?, ?)`,
       [
         sessionExerciseId,
-        repsOrTime,
-        weight,
         JSON.stringify(customMetrics),
         new Date().toISOString()
       ]
@@ -127,10 +125,6 @@ export async function insertWorkoutIntoDB(templateName, orderedExercises, exerci
         
         if (data && Array.isArray(data.sets)) {
           for (const setObj of data.sets) {
-            // Extract standard metrics
-            const repsOrTime = setObj.reps || setObj.time || null;
-            const weight = setObj.weight || null;
-            
             // Everything else goes into customMetrics
             const customMetrics = {};
             for (const key in setObj) {
@@ -142,7 +136,7 @@ export async function insertWorkoutIntoDB(templateName, orderedExercises, exerci
             // Only insert if any field has data
             const hasData = Object.values(setObj).some(v => v != null && v !== "");
             if (hasData) {
-              await insertSetForExercise(sessEx.id, repsOrTime, weight, customMetrics);
+              await insertSetForExercise(sessEx.id, customMetrics);
             }
           }
         }
@@ -210,6 +204,57 @@ export async function setActiveWorkout(workoutId) {
     throw error;
   }
 }
+
+
+
+/**
+ * Get the total number of gym visits (workout sessions) in the last 30 days
+ */
+export async function getGymVisitsLast30Days() {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateLimit = thirtyDaysAgo.toISOString();
+
+    const result = await (await db).getAllAsync(
+      `SELECT COUNT(DISTINCT id) as totalVisits
+       FROM workout_sessions
+       WHERE session_date >= ?`,
+      [dateLimit]
+    );
+
+    return result?.[0]?.totalVisits || 0;
+  } catch (error) {
+    console.error("Error getting gym visits:", error);
+    return 0;
+  }
+}
+
+/**
+ * Get the total number of sets logged in the last 30 days
+ */
+export async function getSetsLoggedLast30Days() {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const dateLimit = thirtyDaysAgo.toISOString();
+
+    const result = await (await db).getAllAsync(
+      `SELECT COUNT(*) as totalSets
+       FROM session_sets ss
+       JOIN session_exercises se ON ss.session_exercise_id = se.id
+       JOIN workout_sessions ws ON se.workout_session_id = ws.id
+       WHERE ws.session_date >= ?`,
+      [dateLimit]
+    );
+
+    return result?.[0]?.totalSets || 0;
+  } catch (error) {
+    console.error("Error getting sets logged:", error);
+    return 0;
+  }
+}
+
 
 /**
  * Summarize volume across muscle groups for a session

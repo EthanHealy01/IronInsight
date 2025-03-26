@@ -19,6 +19,7 @@ import {
 import { getWorkoutTemplates } from '../../database/functions/templates';
 import { db } from "../../database/db"
 import muscleImageMapping from '../../utils/muscleImageMapping';
+import WorkoutModal from '../../components/WorkoutModal';
 
 export default function WorkoutHome() {
   const [templates, setTemplates] = useState([]);
@@ -275,17 +276,6 @@ export default function WorkoutHome() {
     }
   };
 
-  const openConfirmationModal = (title, message, onConfirm) => {
-    Alert.alert(
-      title,
-      message,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: onConfirm }
-      ]
-    );
-  };
-
   return (
     <View style={[globalStyles.container]}>
       <View style={[globalStyles.flexRowBetween, { marginBottom: 20 }]}>
@@ -330,71 +320,13 @@ export default function WorkoutHome() {
         </ScrollView>
       )}
 
-      <Modal
-        visible={isModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setIsModalVisible(false)}
-      >
-        <View style={[
-          globalStyles.modalContainer,
-          { backgroundColor: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.8)' }
-        ]}>
-          <View style={[
-            globalStyles.modalContent,
-            { 
-              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
-              padding: 20,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 400
-            }
-          ]}>
-            <Text style={[
-              globalStyles.modalTitle,
-              { color: isDark ? '#FFFFFF' : '#000000', marginBottom: 15 }
-            ]}>
-              {selectedTemplate?.name ? selectedTemplate?.name : "Unnamed workout"}
-            </Text>
-            
-            <TouchableOpacity
-              style={[globalStyles.primaryButton, { marginBottom: 10 }]}
-              onPress={() => handleStartWorkout(selectedTemplate)}
-            >
-              <Text style={globalStyles.buttonText}>Start Workout</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[globalStyles.secondaryButton, { marginBottom: 10 }]}
-              onPress={() => {
-                setIsModalVisible(false);
-                navigation.navigate('CreateWorkout', { template: selectedTemplate, isEditing: true });
-              }}
-            >
-              <Text style={globalStyles.buttonText}>Edit Workout</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[globalStyles.dangerButton, { marginVertical: 10 }]}
-              onPress={() => {
-                openConfirmationModal(
-                  'Delete Workout Workout',
-                  'Are you sure you want to delete this template?',
-                  () => handleDeleteTemplate(selectedTemplate)
-                );
-              }}
-            >
-              <Text style={globalStyles.buttonText}>Delete Workout</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={globalStyles.secondaryButton}
-              onPress={() => setIsModalVisible(false)}
-            >
-              <Text style={globalStyles.buttonText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+      <WorkoutModal
+        isVisible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        template={selectedTemplate}
+        handleStartWorkout={handleStartWorkout}
+        handleDeleteTemplate={handleDeleteTemplate}
+      />
     </View>
   );
 }

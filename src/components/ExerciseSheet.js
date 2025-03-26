@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, ScrollView } from "react-native";
+import { Text, ScrollView, View } from "react-native";
 import ActionSheet from "react-native-actions-sheet";
 import ExerciseGifImage from "./ExerciseGifImage";
 import { styles } from "../theme/styles";
@@ -23,10 +23,10 @@ const ExerciseSheet = (props) => {
       // Allow dismissing the sheet by tapping on the backdrop
       closeOnTouchBackdrop={true}
     >
-      <ScrollView style={{ padding: 20 }}>
+      <ScrollView style={globalStyles.actionSheet}>
         {exercise && (
           <>
-            {/* Display the GIF image in full width using resizeMode "contain" */}
+          <View style={{borderRadius: 10, height: 250, width: 250, alignSelf: 'center', overflow: 'hidden'}}>
             <ExerciseGifImage
               style={{
                 height: 250,
@@ -37,6 +37,7 @@ const ExerciseSheet = (props) => {
               resizeMode="contain"
               url={exercise.gifUrl}
             />
+            </View>
             {exercise.name && (
               <Text
                 style={{ fontWeight: "bold", fontSize: 18, marginBottom: 10 }}
@@ -93,7 +94,7 @@ const ExerciseSheet = (props) => {
             {/* List the instructions */}
             {exercise.instructions && Array.isArray(exercise.instructions) ? (
               exercise.instructions.map((instruction, index) => (
-                <Text key={index} style={{ marginBottom: 10 }}>
+                <Text key={index} style={[globalStyles.fontSizeRegular, { marginBottom: 10,}]}>
                   <Text style={globalStyles.fontWeightBold}>
                     Step {index + 1}:
                   </Text>{" "}

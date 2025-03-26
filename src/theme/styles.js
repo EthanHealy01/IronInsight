@@ -9,6 +9,10 @@ export const styles = () => {
             flex: 1,
             backgroundColor: isDarkMode ? '#232323' : '#F5F5F5',
         },
+        actionSheet: {
+            padding: 20,
+            backgroundColor: isDarkMode ? '#000' : '#FFFFFF',
+        },
         card: {
             borderRadius: 10,
             padding: 10,
@@ -151,10 +155,10 @@ export const styles = () => {
             fontWeight: 'bold',
         },
         primary: {
-            color: '#EB9848',
+            color: '#F5A623',
         },
         pill: {
-            backgroundColor: '#EB9848',
+            backgroundColor: '#F5A623',
             padding: 5,
             borderRadius: 10,
             marginRight: 5,
@@ -213,7 +217,7 @@ export const styles = () => {
             color: isDarkMode ? '#FFFFFF' : '#8e8e93',
         },
         primaryColor: {
-            backgroundColor: '#EB9848',
+            backgroundColor: '#F5A623',
         },
         secondaryColor: {
             backgroundColor: "#748CA3"
@@ -258,7 +262,7 @@ export const styles = () => {
         
         // Button Styles
         primaryButton: {
-            backgroundColor: '#EB9848',
+            backgroundColor: '#F5A623',
             borderRadius: 25,
             padding: 15,
             alignItems: 'center',
@@ -311,7 +315,7 @@ export const styles = () => {
             borderColor: '#007AFF',
         },
         primaryButton: {
-            backgroundColor: '#EB9848',
+            backgroundColor: '#F5A623',
             borderRadius:10,
             padding: 0,
             alignItems: 'center',
@@ -341,7 +345,11 @@ export const styles = () => {
         },  
         workoutCard: {
             backgroundColor: isDarkMode ? "#000000" : "#FFFFFF",
-            borderRadius: 10
+            borderRadius: 20,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
         },
         modalTitle: {
             fontSize: 20,

@@ -25,10 +25,13 @@ import { getWorkoutTemplates } from '../../database/functions/templates';
 import { setActiveWorkout } from "../../database/functions/workouts";
 import { setExercisingState } from '../../database/functions/workouts';
 import { db } from "../../database/db"; // Import the global db instance
+import WorkoutModal from '../../components/WorkoutModal';
 
-export default function YourWorkouts() {
+export default function YourWorkouts({callback={}}) {
   const [workoutsData, setworkoutsData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   const globalStyles = styles();
   const isDark = useColorScheme() === 'dark';
   const navigation = useNavigation();
@@ -85,22 +88,16 @@ export default function YourWorkouts() {
               width: Dimensions.get('window').width * 0.7,
               marginRight: 10,
               padding: 15,
-              backgroundColor: isDark ? '#1C1C1E' : '#FFFFFF',
             }
           ]}
-          onPress={async () => {
-            try {
-              await setExercisingState(true, item.id);
-              navigation.navigate('HomeMain', {screen: "Home"});
-            } catch (error) {
-              console.error("Error starting workout:", error);
-              alert('Failed to start workout');
-            }
+          onPress={() => {
+            setSelectedTemplate(item);
+            setIsModalVisible(true);
           }}
         >
           <Text 
             style={[
-              globalStyles.workoutTitle,
+              globalStyles.fontSizeMedium, globalStyles.fontWeightBold,
               { color: isDark ? '#FFFFFF' : '#000000' }
             ]} 
             numberOfLines={1}
@@ -133,6 +130,30 @@ export default function YourWorkouts() {
         </TouchableOpacity>
       );
     };
+
+  const handleStartWorkout = async (template) => {
+    try {
+      await setExercisingState(true, template.id);
+      setIsModalVisible(false);
+      callback(template.id)
+    } catch (error) {
+      console.error('Error starting workout:', error);
+      alert('Failed to start workout');
+    }
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    try {
+      (await db).runAsync(
+        'DELETE FROM workout_templates WHERE id = ?', 
+        [template.id]
+      );
+      setIsModalVisible(false);
+      loadWorkouts();
+    } catch (error) {
+      console.error('Error deleting template:', error);
+    }
+  };
 
   return (
     <View style={{ marginTop: 20 }}>
@@ -324,6 +345,14 @@ export default function YourWorkouts() {
           renderItem={renderworkoutItem}
         />
       )}
+
+      <WorkoutModal
+        isVisible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        template={selectedTemplate}
+        handleStartWorkout={handleStartWorkout}
+        handleDeleteTemplate={handleDeleteTemplate}
+      />
     </View>
   );
 }

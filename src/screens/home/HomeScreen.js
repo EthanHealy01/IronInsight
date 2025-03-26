@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { styles } from "../../theme/styles";
 import { useFocusEffect } from "@react-navigation/native";
 import HomeHeader from "./HomeHeader";
 import YourWorkouts from "./YourWorkouts";
 import StaticWorkouts from "./StaticWorkouts";
 import ActiveWorkoutHome from "./ActiveWorkoutHome";
+import MonthlyMetrics from "./MonthlyMetrics";
 import { getExercisingState } from '../../database/functions/workouts';
 
 export default function HomeScreen() {
@@ -43,16 +44,20 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[globalStyles.backgroundColor]}>
+    <ScrollView style={[globalStyles.backgroundColor]}>
       <HomeHeader />
       {hasActiveWorkout && activeTemplateId !== null ? (
         <ActiveWorkoutHome template_id={activeTemplateId} />
       ) : (
-        <>
-          <YourWorkouts />
+        <View style={{marginBottom:100}}>
+          <YourWorkouts callback={(template_id) => {
+            setHasActiveWorkout(true);
+            setActiveTemplateId(template_id);
+          }} />
           <StaticWorkouts />
-        </>
+          <MonthlyMetrics />
+        </View>
       )}
-    </View>
+    </ScrollView>
   );
 }

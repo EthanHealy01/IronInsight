@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, useColorScheme } from 'react-native';
 import { deleteAllData } from '../database/db';
 import { styles } from '../theme/styles';
 
 export default function ProfileScreen({ navigation }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const globalStyles = styles();
+
+  const isDark = useColorScheme() === 'dark';
 
   const handleDeleteAllData = async () => {
     Alert.alert(
@@ -37,7 +39,8 @@ export default function ProfileScreen({ navigation }) {
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  
+    <View style={globalStyles.container}>
       <Text>Profile Screen</Text>
       <TouchableOpacity 
         style={[

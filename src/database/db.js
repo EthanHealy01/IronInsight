@@ -80,9 +80,7 @@ async function createTablesIfNotExist(database) {
     CREATE TABLE IF NOT EXISTS session_sets (
       id                    INTEGER PRIMARY KEY AUTOINCREMENT,
       session_exercise_id   INTEGER NOT NULL,
-      reps_or_time          INTEGER,
-      weight                REAL,
-      custom_metrics        TEXT,
+      metrics        TEXT,
       created_at            TEXT,
       updated_at            TEXT,
       FOREIGN KEY (session_exercise_id)

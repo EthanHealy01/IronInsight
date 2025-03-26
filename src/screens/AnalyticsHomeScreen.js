@@ -1,9 +1,10 @@
 import React from 'react';
 import { View, Text, Button } from 'react-native';
-
+import { styles } from '../theme/styles';
 export default function AnalyticsHomeScreen({ navigation }) {
+  const globalStyles = styles();
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <View style={globalStyles.container}>
       <Text>Analytics Overview</Text>
 
       {/* Example button to navigate to sub-analytics */}

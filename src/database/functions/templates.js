@@ -136,9 +136,6 @@ export async function updateWorkoutTemplate(templateId, exercises, name) {
 
         if (sessionExercise) {
           for (const setData of ex.sets) {
-            const repsOrTime = setData.reps || setData.time || null;
-            const weight = setData.weight || null;
-            
             const customMetrics = {};
             for (const [key, value] of Object.entries(setData)) {
               if (!["reps", "time", "weight"].includes(key) && value !== "") {
@@ -148,8 +145,6 @@ export async function updateWorkoutTemplate(templateId, exercises, name) {
 
             await insertSetForTemplate(
               sessionExercise.id,
-              repsOrTime,
-              weight,
               customMetrics
             );
           }
@@ -237,15 +232,13 @@ export async function getTemplateExercises(templateId) {
 }
 
 // Local version of insertSetForExercise
-async function insertSetForTemplate(sessionExerciseId, repsOrTime, weight, customMetrics = {}) {
+async function insertSetForTemplate(sessionExerciseId, customMetrics = {}) {
   await (await db).runAsync(
     `INSERT INTO session_sets (
-      session_exercise_id, reps_or_time, weight, custom_metrics, created_at
+      session_exercise_id, metrics, created_at
     ) VALUES (?, ?, ?, ?, ?)`,
     [
       sessionExerciseId,
-      repsOrTime,
-      weight,
       JSON.stringify(customMetrics),
       new Date().toISOString()
     ]

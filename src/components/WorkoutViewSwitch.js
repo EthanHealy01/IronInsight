@@ -77,8 +77,8 @@ const localStyles = StyleSheet.create({
     borderColor: '#E5E5E5',
   },
   activeButton: {
-    backgroundColor: '#EB9848',
-    borderColor: '#EB9848',  
+    backgroundColor: '#F5A623',
+    borderColor: '#F5A623',  
   },
   inctiveButton: {
     backgroundColor: '#FFFFFF',

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { createStackNavigator } from "@react-navigation/stack";
 import { useFocusEffect } from "@react-navigation/native";
-import * as SQLite from 'expo-sqlite';
 import NotificationsScreen from "../../screens/home/NotificationsScreen";
 import HomeScreen from "../../screens/home/HomeScreen";
-import ActiveWorkoutHome from "../../screens/home/ActiveWorkoutHome";
 import WorkoutRecap from "../../screens/home/WorkoutRecap";
 import ExploreExercises from "../../screens/exercises/ExploreExercises";
 import WorkoutHome from "../../screens/workouts/WorkoutsHome";
@@ -35,9 +33,6 @@ export default function HomeStack() {
     }, [])
   );
 
-  const ActiveWorkoutWithProps = () => (
-    <ActiveWorkoutHome template_id={activeTemplateId} />
-  );
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, animation: "none" }}>

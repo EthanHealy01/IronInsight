@@ -1,3 +1,4 @@
+
 export async function runMigrations(db) {
   try {
     // Create migrations table if it doesn't exist
@@ -8,6 +9,7 @@ export async function runMigrations(db) {
         executed_at TEXT NOT NULL
       )
     `);
+
 
     return true;
   } catch (error) {

@@ -60,7 +60,7 @@ export default function ExerciseGifImage({ exerciseName="", url="", style={}, re
   return (
     <View style={[style, { justifyContent: 'center', alignItems: 'center' }]}>
       <Image
-        style={[style, { opacity: isLoading ? 0 : 1 }]}
+        style={[style, { opacity: isLoading ? 0 : 1} ]}
         source={{ 
           uri: imageUrl,
           cache: retryCount > 0 ? 'reload' : 'default'
