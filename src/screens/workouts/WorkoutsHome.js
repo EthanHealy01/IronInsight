@@ -12,7 +12,7 @@ import {
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { faChevronRight, faPlus, faTimes } from "@fortawesome/free-solid-svg-icons";
+import { faChevronRight, faHistory, faList, faPlus, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { 
   setExercisingState
 } from "../../database/functions/workouts"
@@ -327,10 +327,11 @@ export default function WorkoutHome() {
       {/* Only show the history button if the user has completed workouts */}
       {hasWorkoutHistory && (
         <TouchableOpacity
-          style={[globalStyles.primaryButton, { marginVertical: 10 }]}
+          style={[globalStyles.primaryButton, globalStyles.flexRowBetween, { marginBottom: 10, paddingHorizontal:15, paddingVertical:20}]}
           onPress={openModal}
         >
           <Text style={globalStyles.buttonText}>View Workout History</Text>
+          <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
         </TouchableOpacity>
       )}
 

@@ -1,11 +1,41 @@
-import * as SQLite from 'expo-sqlite';
-import { runMigrations } from './migrations';
+import * as SQLite from "expo-sqlite";
+import { runMigrations } from "./migrations";
 
 // We'll store the open DB instance here
 export let db;
 
 // 1) Create all tables if they don't exist yet
 async function createTablesIfNotExist(database) {
+  // -------------------------------------------------------------------------
+  // USER INFO
+  // -------------------------------------------------------------------------
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS user_info (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      weight INTEGER,
+      goal_weight INTEGER,
+      height INTEGER,
+      age INTEGER,
+      sex TEXT,
+      name TEXT,
+      profile_picture TEXT,
+      created_at TEXT,
+      updated_at TEXT
+    );
+  `);
+
+  // -------------------------------------------------------------------------
+  // WEIGHT HISTORY
+  // -------------------------------------------------------------------------
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS weight_history (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      weight INTEGER,
+      created_at TEXT,
+      updated_at TEXT
+    );
+  `);
+
   // -------------------------------------------------------------------------
   // WORKOUT TEMPLATES
   // -------------------------------------------------------------------------
@@ -21,7 +51,6 @@ async function createTablesIfNotExist(database) {
 
   // -------------------------------------------------------------------------
   // TEMPLATE_EXERCISES
-  // Now includes columns for `sets` and `metrics`.
   // -------------------------------------------------------------------------
   (await db).execAsync(`
     CREATE TABLE IF NOT EXISTS template_exercises (
@@ -120,15 +149,14 @@ async function createTablesIfNotExist(database) {
   const countResult = await database.getAllAsync(`
     SELECT COUNT(*) as count FROM app_state
   `);
-  
+
   if (!countResult || countResult.length === 0 || countResult[0].count === 0) {
     await database.execAsync(`
       INSERT INTO app_state (is_exercising, active_template_id) 
       VALUES (0, NULL)
     `);
   }
-  
-  // Add this code to fix the issue
+
   // Check if is_exercising column exists in app_state table
   try {
     await database.execAsync(`SELECT is_exercising FROM app_state LIMIT 1`);
@@ -153,7 +181,7 @@ async function createTablesIfNotExist(database) {
 // 2) Initialize the DB
 export async function initDB() {
   try {
-    const database = await SQLite.openDatabaseAsync('iron_insight'); 
+    const database = await SQLite.openDatabaseAsync("iron_insight");
     db = database;
     await database.execAsync("PRAGMA foreign_keys = ON;");
     await createTablesIfNotExist(database);
@@ -176,6 +204,18 @@ export async function deleteAllData() {
     console.log("All data deleted successfully");
   } catch (error) {
     console.error("Error deleting all data:", error);
+    throw error;
+  }
+}
+
+export async function isUserInfoEmpty() {
+  try {
+    const result = await db.getAllAsync(
+      `SELECT COUNT(*) as count FROM user_info`
+    );
+    return result[0].count === 0;
+  } catch (error) {
+    console.error("Error checking user_info:", error);
     throw error;
   }
 }

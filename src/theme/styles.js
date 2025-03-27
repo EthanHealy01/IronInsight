@@ -97,6 +97,11 @@ export const styles = () => {
             fontSize: 28,
             color: isDarkMode ? '#FFFFFF' : '#000000',
         },
+        introText: {
+            fontSize: 40, 
+            color: "#FFFFFF",
+            fontWeight: "medium",
+        },
         textCenter: {
             textAlign: 'center',
             color: isDarkMode ? '#FFFFFF' : '#000000',

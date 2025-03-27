@@ -285,7 +285,7 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
                 style={[globalStyles.dangerButton, globalStyles.flexRowBetween, {padding: 10, marginTop:10}]}
                 onPress={showConfirmationButton}
               >
-                <Text style={globalStyles.fontWeightSemiBold}>Delete this session from history</Text>
+                <Text style={[globalStyles.fontWeightSemiBold, {color: 'white'}]}>Delete this session from history</Text>
                 <FontAwesomeIcon icon={faTrash} size={18} color="white" />
               </TouchableOpacity>
               ) : (
