@@ -340,32 +340,7 @@ export default function WorkoutHome() {
         visible={modalVisible}
         onRequestClose={closeModal}
       >
-        <View style={[globalStyles.container, { position: 'relative' }]}>
-          <TouchableOpacity
-            style={{
-              position: 'absolute',
-              top: 20,
-              right: 20,
-              zIndex: 10,
-              backgroundColor: globalStyles.secondaryButton.backgroundColor,
-              borderRadius: 25,
-              width: 40,
-              height: 40,
-              justifyContent: 'center',
-              alignItems: 'center',
-              elevation: 5,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.25,
-              shadowRadius: 3.84,
-            }}
-            onPress={closeModal}
-          >
-            <FontAwesomeIcon icon={faTimes} size={20} color="#FFF" />
-          </TouchableOpacity>
-          
-          <WorkoutHistory />
-        </View>
+          <WorkoutHistory onClose={closeModal}/>
       </Modal>
 
       {loading ? (

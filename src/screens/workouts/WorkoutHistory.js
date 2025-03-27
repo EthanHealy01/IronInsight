@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Alert, SafeAreaView } from 'react-native';
 import { styles } from '../../theme/styles';
 import { getAllPreviousWorkouts, getWorkoutDetails, deleteWorkoutSession } from '../../database/functions/workouts';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faChevronRight, faTimes, faTrash, faList } from '@fortawesome/free-solid-svg-icons';
+import { faChevronRight, faTimes, faTrash, faList, faClose } from '@fortawesome/free-solid-svg-icons';
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
@@ -58,6 +58,23 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState(null);
   const globalStyles = styles();
+  const [confirmationButtonVisible, setConfirmationButtonVisible] = useState(false);
+  const scrollViewRef = useRef(null);
+  
+  const putButtonsIntoFocus = () => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollToEnd({ animated: true });
+    }
+  };
+
+  const showConfirmationButton = () => {
+    putButtonsIntoFocus();
+    setConfirmationButtonVisible(true);
+  };
+
+  const hideConfirmationButton = () => {
+    setConfirmationButtonVisible(false);
+  };
 
   useEffect(() => {
     async function fetchWorkoutDetails() {
@@ -135,12 +152,6 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
               <Text style={[globalStyles.fontWeightBold, globalStyles.fontSizeLarge, { marginBottom: 15 }]}>
                 Workout Details
               </Text>
-              <TouchableOpacity
-                style={{ marginLeft: 10 }}
-                onPress={handleDelete}
-              >
-                <FontAwesomeIcon icon={faTrash} size={20} color="#d9534f" />
-              </TouchableOpacity>
             </View>
             
             <TouchableOpacity onPress={onClose}>
@@ -158,7 +169,7 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
               <Text style={globalStyles.fontWeightBold}>{details.message}</Text>
             </View>
           ) : (
-            <ScrollView>
+            <ScrollView ref={scrollViewRef}>
               <Text style={[globalStyles.fontWeightBold, { marginVertical: 10 }]}>
                 {details.name}
               </Text>
@@ -268,6 +279,35 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
                   )}
                 </View>
               ))}
+
+              {!confirmationButtonVisible ? (
+              <TouchableOpacity
+                style={[globalStyles.dangerButton, globalStyles.flexRowBetween, {padding: 10, marginTop:10}]}
+                onPress={showConfirmationButton}
+              >
+                <Text style={globalStyles.fontWeightSemiBold}>Delete this session from history</Text>
+                <FontAwesomeIcon icon={faTrash} size={18} color="white" />
+              </TouchableOpacity>
+              ) : (
+                <View style={{marginTop: 10}}>
+                <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, gap: 10}}>
+                <TouchableOpacity
+                  style={[globalStyles.dangerButton, globalStyles.flexRowBetween, {padding: 10, marginTop:10, flex: 1}]}
+                  onPress={handleDelete}
+                >
+                  <Text style={globalStyles.fontWeightSemiBold}>Delete</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[globalStyles.secondaryButton, globalStyles.flexRowBetween, {padding: 10, marginTop:10, flex: 1}]}
+                  onPress={hideConfirmationButton}
+                >
+                  <Text style={globalStyles.fontWeightSemiBold}>Cancel</Text>
+                </TouchableOpacity>
+                </View>
+                <Text style={globalStyles.fontWeightBold}>Are you sure? This can't be undone.</Text>
+
+                </View>
+              )}
             </ScrollView>
           )}
         </View>
@@ -276,11 +316,12 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
   );
 };
 
-const WorkoutHistory = () => {
+const WorkoutHistory = ({ onClose }) => {
   const globalStyles = styles();
   const [workouts, setWorkouts] = useState([]);
   const [selectedWorkout, setSelectedWorkout] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const scrollViewRef = useRef(null);
 
   const fetchWorkouts = async () => {
     try {
@@ -301,18 +342,19 @@ const WorkoutHistory = () => {
   };
 
   const handleWorkoutDeleted = () => {
-    // Refresh the workout list after deletion
     fetchWorkouts();
   };
 
   return (
-    <View style={[globalStyles.container, { padding: 10 }]}>
-      <ScrollView>
+    <SafeAreaView style={[globalStyles.container,]}>
+      <ScrollView ref={scrollViewRef} style={{padding: 10}}>
         <View style={globalStyles.flexRowBetween}>
           <Text style={[globalStyles.fontWeightBold, globalStyles.fontSizeLarge, { marginBottom: 15 }]}>
             Workout History
           </Text>
-          <FontAwesomeIcon icon={faList} size={24} color="#666" />
+          <TouchableOpacity onPress={onClose}>
+            <FontAwesomeIcon icon={faClose} size={24} color="#666" />
+          </TouchableOpacity>
         </View>
         
         {workouts.length === 0 ? (
@@ -360,7 +402,7 @@ const WorkoutHistory = () => {
         workout={selectedWorkout}
         onDelete={handleWorkoutDeleted}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 
