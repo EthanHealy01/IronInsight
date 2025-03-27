@@ -48,6 +48,7 @@ async function createTablesIfNotExist(database) {
       workout_template_id  INTEGER NOT NULL,
       user_id              INTEGER,
       session_date         TEXT NOT NULL,
+      duration             INTEGER DEFAULT 0,
       created_at           TEXT,
       updated_at           TEXT,
       FOREIGN KEY (workout_template_id)

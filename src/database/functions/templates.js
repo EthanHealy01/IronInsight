@@ -68,7 +68,7 @@ export async function createWorkoutTemplate(templateName, exercises) {
  * Overwrite a workout template with new exercise data (including metrics).
  * We'll delete the old template_exercises rows and re-insert them.
  */
-export async function updateWorkoutTemplate(templateId, exercises, name) {
+export async function updateWorkoutTemplate(templateId, exercises, name, createSession = true) {
   console.log("Updating workout template:", templateId, exercises, name);
   try {
     // 1) Update template name if provided
@@ -118,35 +118,37 @@ export async function updateWorkoutTemplate(templateId, exercises, name) {
       );
     }
 
-    // 4) Create initial workout session with the entered data
-    const sessionId = await createSessionForTemplate(
-      templateId,
-      null,
-      new Date().toISOString()
-    );
+    // 4) Create initial workout session with the entered data - ONLY if requested
+    if (createSession) {
+      const sessionId = await createSessionForTemplate(
+        templateId,
+        null,
+        new Date().toISOString()
+      );
 
-    // 5) For each exercise, save its sets data
-    for (const ex of exercises) {
-      if (ex.sets && ex.sets.length > 0) {
-        const sessionExercise = await (await db).getAsync(
-          `SELECT id FROM session_exercises 
-           WHERE workout_session_id = ? AND exercise_name = ?`,
-          [sessionId, ex.name]
-        );
+      // 5) For each exercise, save its sets data
+      for (const ex of exercises) {
+        if (ex.sets && ex.sets.length > 0) {
+          const sessionExercise = await (await db).getAsync(
+            `SELECT id FROM session_exercises 
+             WHERE workout_session_id = ? AND exercise_name = ?`,
+            [sessionId, ex.name]
+          );
 
-        if (sessionExercise) {
-          for (const setData of ex.sets) {
-            const customMetrics = {};
-            for (const [key, value] of Object.entries(setData)) {
-              if (!["reps", "time", "weight"].includes(key) && value !== "") {
-                customMetrics[key] = value;
+          if (sessionExercise) {
+            for (const setData of ex.sets) {
+              const customMetrics = {};
+              for (const [key, value] of Object.entries(setData)) {
+                if (!["reps", "time", "weight"].includes(key) && value !== "") {
+                  customMetrics[key] = value;
+                }
               }
-            }
 
-            await insertSetForTemplate(
-              sessionExercise.id,
-              customMetrics
-            );
+              await insertSetForTemplate(
+                sessionExercise.id,
+                customMetrics
+              );
+            }
           }
         }
       }

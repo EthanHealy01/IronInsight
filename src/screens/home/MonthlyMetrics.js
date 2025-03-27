@@ -39,11 +39,11 @@ export default function MonthlyMetrics() {
   return (
     <View>
       <Text
-        style={[globalStyles.fontWeightBold, globalStyles.fontSizeMedium, { marginVertical: 12 }]}
+        style={[globalStyles.fontWeightBold, globalStyles.fontSizeMedium, { marginVertical: 20 }]}
         adjustsFontSizeToFit
         minimumFontScale={0.5}
       >
-        Monthly Highlights
+        Monthly highlights
       </Text>
 
       <View style={[globalStyles.flexRowBetween]}>

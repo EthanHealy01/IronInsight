@@ -12,7 +12,7 @@ import {
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
-import { faChevronRight, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { faChevronRight, faPlus, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { 
   setExercisingState
 } from "../../database/functions/workouts"
@@ -20,12 +20,16 @@ import { getWorkoutTemplates } from '../../database/functions/templates';
 import { db } from "../../database/db"
 import muscleImageMapping from '../../utils/muscleImageMapping';
 import WorkoutModal from '../../components/WorkoutModal';
+import WorkoutHistory from './WorkoutHistory';
+import { hasCompletedWorkouts } from '../../database/functions/workouts';
 
 export default function WorkoutHome() {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [hasWorkoutHistory, setHasWorkoutHistory] = useState(false);
 
   // Track which image index to use for each muscle group
   const muscleImageCountersRef = useRef({});
@@ -114,6 +118,16 @@ export default function WorkoutHome() {
       };
     }, [])
   );
+
+  useEffect(() => {
+    // Check if user has completed any workouts
+    async function checkWorkoutHistory() {
+      const hasHistory = await hasCompletedWorkouts();
+      setHasWorkoutHistory(hasHistory);
+    }
+    
+    checkWorkoutHistory();
+  }, []);
 
   /**
    * Render each template card
@@ -276,6 +290,14 @@ export default function WorkoutHome() {
     }
   };
 
+  const openModal = () => {
+    setModalVisible(true);
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+  };
+
   return (
     <View style={[globalStyles.container]}>
       <View style={[globalStyles.flexRowBetween, { marginBottom: 20 }]}>
@@ -302,6 +324,50 @@ export default function WorkoutHome() {
         </TouchableOpacity>
       </View>
 
+      {/* Only show the history button if the user has completed workouts */}
+      {hasWorkoutHistory && (
+        <TouchableOpacity
+          style={[globalStyles.primaryButton, { marginVertical: 10 }]}
+          onPress={openModal}
+        >
+          <Text style={globalStyles.buttonText}>View Workout History</Text>
+        </TouchableOpacity>
+      )}
+
+      <Modal
+        animationType="slide"
+        transparent={false}
+        visible={modalVisible}
+        onRequestClose={closeModal}
+      >
+        <View style={[globalStyles.container, { position: 'relative' }]}>
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: 20,
+              right: 20,
+              zIndex: 10,
+              backgroundColor: globalStyles.secondaryButton.backgroundColor,
+              borderRadius: 25,
+              width: 40,
+              height: 40,
+              justifyContent: 'center',
+              alignItems: 'center',
+              elevation: 5,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+            }}
+            onPress={closeModal}
+          >
+            <FontAwesomeIcon icon={faTimes} size={20} color="#FFF" />
+          </TouchableOpacity>
+          
+          <WorkoutHistory />
+        </View>
+      </Modal>
+
       {loading ? (
         <Text style={[globalStyles.fontSizeRegular, { color: isDark ? '#FFFFFF' : '#000000' }]}>
           Loading...
@@ -311,6 +377,7 @@ export default function WorkoutHome() {
           No workout templates created yet.
         </Text>
       ) : (
+        <>
         <ScrollView showsVerticalScrollIndicator={false}>
           {templates.map((template, index)=>{
             return (
@@ -318,6 +385,7 @@ export default function WorkoutHome() {
             )
           })}
         </ScrollView>
+        </>
       )}
 
       <WorkoutModal

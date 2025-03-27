@@ -32,6 +32,7 @@ const ActiveWorkoutExerciseCard = ({
   handleRemoveMetric,
   handleAutofillSet,
   handleExerciseGifClick,
+  handleRemoveSet,
 }) => {
   const exId = exercise.id;
   const isFinished = completedExercises.has(exId);
@@ -220,33 +221,70 @@ const ActiveWorkoutExerciseCard = ({
           </ScrollView>
 
           {/* Buttons */}
+          {/* Sets control row - New design with - and + buttons */}
           <View style={[globalStyles.flexRowBetween, { marginTop: 15 }]}>
             <TouchableOpacity
-              onPress={() => handleAddSet(exId)}
-              style={[globalStyles.primaryButton, { flex: 1, marginRight: 5 }]}
+              onPress={() => exercise.currentSets.length > 1 && handleRemoveSet(exId)}
+              style={[
+                globalStyles.secondaryButton, 
+                { 
+                  flex:1,
+                  maxHeight: 50,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }
+              ]}
+              disabled={exercise.currentSets.length <= 1}
             >
-              <Text style={globalStyles.buttonText}>Add Set</Text>
+              <Text style={[globalStyles.buttonText]}>Remove Set -</Text>
             </TouchableOpacity>
+            
+            <View style={{ flex:1, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={[
+                globalStyles.fontWeightBold, 
+                { color: isDark ? '#FFFFFF' : '#000000', textAlign: 'center' }
+              ]}>
+                Sets ({exercise.currentSets.length})
+              </Text>
+            </View>
+            
+            <TouchableOpacity
+              onPress={() => handleAddSet(exId)}
+              style={[
+                globalStyles.primaryButton, 
+                { 
+                  flex:1,
+                  maxHeight: 50,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }
+              ]}
+            >
+              <Text style={[globalStyles.buttonText]}>Add Set +</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Bottom row with Add Metric and Finish Exercise */}
+          <View style={[globalStyles.flexRowBetween, { marginTop: 10 }]}>
+            <TouchableOpacity
+              onPress={() => handleAddMetricClick(exId)}
+              style={[globalStyles.secondaryButton, { flex: 1, marginRight: 5 }]}
+            >
+              <View style={[globalStyles.flexRow, { gap: 5, justifyContent: 'center' }]}>
+                <Text style={globalStyles.buttonText}>Add Metric</Text>
+                <FontAwesomeIcon icon={faPlus} size={14} color="#FFFFFF" />
+              </View>
+            </TouchableOpacity>
+            
             <TouchableOpacity
               onPress={() => handleFinishExercise(exercise)}
-              style={[globalStyles.secondaryButton, { flex: 1, marginLeft: 5 }]}
+              style={[globalStyles.successButton, { flex: 1, marginLeft: 5 }]}
             >
-              <Text style={globalStyles.buttonText}>
+              <Text style={[globalStyles.buttonText, { textAlign: 'center' }]}>
                 {completedExercises.has(exId) ? 'Undo Finish' : 'Finish Exercise'}
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Add Metric */}
-          <TouchableOpacity
-            onPress={() => handleAddMetricClick(exId)}
-            style={[globalStyles.secondaryButton, { marginTop: 10 }]}
-          >
-            <View style={[globalStyles.flexRow, { gap: 5 }]}>
-              <Text style={globalStyles.buttonText}>Add Metric</Text>
-              <FontAwesomeIcon icon={faPlus} size={14} color="#FFFFFF" />
-            </View>
-          </TouchableOpacity>
         </View>
       )}
     </View>

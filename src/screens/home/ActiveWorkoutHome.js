@@ -75,6 +75,9 @@ useEffect(() => {
   return () => clearInterval(timer);
 }, [startTime]);
 
+  // Add this state to track if a workout submission is in progress
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   // 1) Load the template & exercises from DB
   useEffect(() => {
     async function loadActiveWorkout() {
@@ -461,6 +464,38 @@ useEffect(() => {
     }
   };
 
+  
+  // Replace the current handleRemoveSet function with this:
+  const handleRemoveSet = (exerciseId) => {
+    setWorkoutData((prev) => {
+      if (!prev) return prev;
+      
+      const updated = prev.exercises.map((ex) => {
+        if (ex.id === exerciseId && ex.currentSets.length > 1) {
+          // Create a copy of the sets array with the last set removed
+          const updatedSets = [...ex.currentSets];
+          updatedSets.pop(); // Remove the last set
+          
+          return {
+            ...ex,
+            currentSets: updatedSets,
+            suggested_sets: Math.max(1, (ex.suggested_sets || 0) - 1)
+          };
+        }
+        return ex;
+      });
+      
+      // Create new workout data with updated exercises
+      const newWorkoutData = { ...prev, exercises: updated };
+      
+      // Save to AsyncStorage
+      saveWorkoutProgress(newWorkoutData)
+        .catch(error => console.error('❌ Save failed:', error));
+        
+      return newWorkoutData;
+    });
+  };
+
   // Autofill: copy last session's values into current set
   const handleAutofillSet = (exerciseId, setIndex) => {
     // Find the exercise in local state
@@ -494,6 +529,10 @@ useEffect(() => {
 
   // Modify handleCancelWorkout
   const handleCancelWorkout = async () => {
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       // First, gather the data we need for the recap
       const recapData = {
@@ -532,11 +571,17 @@ useEffect(() => {
       }
     } catch (error) {
       console.error('Error cancelling workout:', error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   // Similarly update handleFinishWorkout
   const handleFinishWorkout = async () => {
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    
     try {
       // First, gather the data we need for the recap
       const recapData = {
@@ -565,7 +610,8 @@ useEffect(() => {
       const sessionId = await createWorkoutSession(
         template_id,
         null,
-        new Date().toISOString()
+        new Date().toISOString(),
+        elapsedTime // Pass the workout duration in minutes
       );
 
       console.log("sessionId", sessionId);
@@ -617,7 +663,7 @@ useEffect(() => {
         };
       });
 
-      await updateWorkoutTemplate(template_id, updatedExercisesForTemplate);
+      await updateWorkoutTemplate(template_id, updatedExercisesForTemplate, null, false);
 
       // 5) not exercising - use the dedicated function
       console.log('🔄 Setting exercising state to false and template ID to null');
@@ -635,6 +681,8 @@ useEffect(() => {
       console.error('Error finishing workout:', error);
       console.error('Error stack:', error.stack);
       Alert.alert('Error', 'Something went wrong finishing your workout.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -693,6 +741,7 @@ useEffect(() => {
     return (
       <ActiveWorkoutExerciseCard
         key={exercise.id}
+        handleRemoveSet={handleRemoveSet}
         exercise={exercise}
         expandedExercise={expandedExercise}
         completedExercises={completedExercises}
@@ -735,22 +784,28 @@ useEffect(() => {
       {/* Bottom Buttons */}
       <View style={[globalStyles.flexRowBetween, { marginVertical: 20, marginBottom: 100 }]}>
         <TouchableOpacity
+          disabled={isSubmitting}
           style={[
             globalStyles.button,
-            { backgroundColor: '#FF6B6B', flex: 1, marginRight: 5 },
+            { backgroundColor: isSubmitting ? '#aaa' : '#FF6B6B', flex: 1, marginRight: 5 },
           ]}
           onPress={handleCancelWorkout}
         >
-          <Text style={globalStyles.buttonText}>Cancel Workout</Text>
+          <Text style={globalStyles.buttonText}>
+            {isSubmitting ? 'Processing...' : 'Cancel Workout'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
+          disabled={isSubmitting}
           style={[
             globalStyles.button,
-            { backgroundColor: '#4CAF50', flex: 1, marginLeft: 5 },
+            { backgroundColor: isSubmitting ? '#aaa' : '#4CAF50', flex: 1, marginLeft: 5 },
           ]}
           onPress={handleFinishWorkout}
         >
-          <Text style={globalStyles.buttonText}>Finish Workout</Text>
+          <Text style={globalStyles.buttonText}>
+            {isSubmitting ? 'Processing...' : 'Finish Workout'}
+          </Text>
         </TouchableOpacity>
       </View>
 

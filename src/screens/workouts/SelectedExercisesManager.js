@@ -556,7 +556,7 @@ function ExerciseItem({
                           {
                             width: 80,
                             marginRight: 10,
-                            color: isDark ? "#FFF" : "#000",
+                            color: "#000",
                             backgroundColor: "#FFCA97",
                             borderColor: "#FFCA97",
                             borderRadius: 100,

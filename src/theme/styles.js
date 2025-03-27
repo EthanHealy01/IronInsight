@@ -273,18 +273,6 @@ export const styles = () => {
             shadowRadius: 3.84,
             elevation: 5,
         },
-        secondaryButton: {
-            backgroundColor: '#748CA3',
-            borderRadius: 25,
-            padding: 15,
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: isDarkMode ? 'transparent' : '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5,
-        },
         buttonText: {
             color: '#FFFFFF',
             fontSize: 16,
@@ -324,6 +312,14 @@ export const styles = () => {
         },
         secondaryButton: {
             backgroundColor: '#748CA3',
+            borderRadius:10,
+            padding: 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingVertical:10
+        },
+        successButton: {
+        backgroundColor: '#04CE00',
             borderRadius:10,
             padding: 0,
             alignItems: 'center',

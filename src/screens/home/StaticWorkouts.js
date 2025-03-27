@@ -39,13 +39,13 @@ const MuscleGroupCard = ({ image, title, muscle_group, body }) => {
         style={{
           padding: 10,
           width: Dimensions.get("window").width * 0.5 - 20,
-          borderRadius: 10,
+          borderRadius: 20,
           overflow: "hidden",
           justifyContent: "space-between",
           height: 120,
           position: "relative", // Ensure overlay works properly
         }}
-        imageStyle={{ borderRadius: 10 }}
+        imageStyle={{ borderRadius: 20 }}
       >
         {/* Dark Overlay for Arm Exercises */}
         {isDarkImage && (
@@ -57,7 +57,7 @@ const MuscleGroupCard = ({ image, title, muscle_group, body }) => {
               right: 0,
               bottom: 0,
               backgroundColor: "rgba(0, 0, 0, 0.4)",
-              borderRadius: 10,
+              borderRadius: 20,
             }}
           />
         )}
@@ -97,7 +97,7 @@ const StaticWorkouts = () => {
     <>
       <View style={globalStyles.flexRowBetween}>
         <Text
-          style={[globalStyles.fontWeightBold, globalStyles.fontSizeMedium]}
+          style={[globalStyles.fontWeightBold, globalStyles.fontSizeMedium, { marginVertical: 10 }]}
           adjustsFontSizeToFit
           minimumFontScale={0.5}
         >
