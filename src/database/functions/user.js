@@ -48,4 +48,73 @@ export async function getUserInfo() {
   }
 }
 
+export const saveWeight = async (weight) => {
+  const createdAt = new Date().toISOString();
+  const updatedAt = createdAt;
+  try {
+    await db.runAsync(`
+      INSERT INTO weight_history (weight, created_at, updated_at)
+      VALUES (?, ?, ?);
+    `, [weight, createdAt, updatedAt]);
+    
+    await db.runAsync(`
+      UPDATE user_info SET weight = ?;
+    `, [weight]);
+
+    console.log("Weight saved successfully:", weight, createdAt);
+  } catch (error) {
+    console.error("Error saving weight:", error);
+    throw error;
+  }
+};
+
+export const getWeightHistory = async () => {
+  try {
+    // First, get the weight history
+    const weightResults = await db.getAllAsync(`
+      SELECT * FROM weight_history 
+      WHERE weight IS NOT NULL 
+      ORDER BY created_at DESC;
+    `);
+    
+    // Second, get the goal weight from user_info
+    const userInfoResults = await db.getAllAsync(`
+      SELECT goal_weight, weight as current_weight FROM user_info
+      LIMIT 1;
+    `);
+    
+    // Combine the results
+    const goalWeight = userInfoResults.length > 0 ? userInfoResults[0].goal_weight : null;
+    const currentWeight = userInfoResults.length > 0 ? userInfoResults[0].current_weight : null;
+    return {
+      weights: weightResults,
+      goalWeight: goalWeight,
+      currentWeight: currentWeight
+    };
+  } catch (error) {
+    console.error("Error retrieving weight history:", error);
+    return { weights: [], goalWeight: null };
+  }
+};
+
+export const updateGoalWeight = async (goalWeight) => {
+  try {
+    const database = await db;
+    const updatedAt = new Date().toISOString();
+    
+    await database.runAsync(`
+      UPDATE user_info 
+      SET goal_weight = ?, updated_at = ?
+    `, [goalWeight, updatedAt]);
+    
+    console.log("Goal weight updated successfully:", goalWeight);
+    return true;
+  } catch (error) {
+    console.error("Error updating goal weight:", error);
+    throw error;
+  }
+};
+
+
+
 

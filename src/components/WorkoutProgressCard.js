@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { styles } from '../theme/styles';
+import Svg, { Circle } from 'react-native-svg';
 
 export default function WorkoutProgressCard({
   completedSets,
@@ -10,30 +11,6 @@ export default function WorkoutProgressCard({
   const globalStyles = styles();
   const percentage = totalSets === 0 ? 0 : Math.round((completedSets / totalSets) * 100);
   const setsLeft = Math.max(totalSets - completedSets, 0);
-
-  // Calculate how much of each border should be orange based on percentage
-  const getProgressStyle = () => {
-    if (percentage === 0) return { borderColor: '#333333' };
-    if (percentage <= 25) return {
-      borderLeftColor: '#FFB74D',
-      borderTopColor: '#333333',
-      borderRightColor: '#333333',
-      borderBottomColor: '#333333',
-    };
-    if (percentage <= 50) return {
-      borderLeftColor: '#FFB74D',
-      borderTopColor: '#FFB74D',
-      borderRightColor: '#333333',
-      borderBottomColor: '#333333',
-    };
-    if (percentage <= 75) return {
-      borderLeftColor: '#FFB74D',
-      borderTopColor: '#FFB74D',
-      borderRightColor: '#FFB74D',
-      borderBottomColor: '#333333',
-    };
-    return { borderColor: '#FFB74D' };
-  };
 
   return (
     <View
@@ -49,7 +26,7 @@ export default function WorkoutProgressCard({
         },
       ]}
     >
-      {/* Circular Progress */}
+      {/* SVG Circular Progress */}
       <View style={{
         width: 60,
         height: 60,
@@ -58,23 +35,39 @@ export default function WorkoutProgressCard({
         position: 'relative',
         marginRight: 15
       }}>
-        {/* Progress circle */}
-        <View style={{
-          width: '100%',
-          height: '100%',
-          borderRadius: 30,
-          borderWidth: 5,
-          position: 'absolute',
-          transform: [{ rotate: '-90deg' }],
-          ...getProgressStyle()
-        }} />
+        <Svg width="60" height="60" viewBox="0 0 100 100">
+          {/* Background circle */}
+          <Circle
+            cx="50"
+            cy="50"
+            r="45"
+            stroke="#333333"
+            strokeWidth="10"
+            fill="transparent"
+          />
+          
+          {/* Progress circle */}
+          <Circle
+            cx="50"
+            cy="50"
+            r="45"
+            stroke="#FFB74D"
+            strokeWidth="10"
+            fill="transparent"
+            strokeDasharray={`${2 * Math.PI * 45}`}
+            strokeDashoffset={`${2 * Math.PI * 45 * (1 - percentage / 100)}`}
+            strokeLinecap="round"
+            transform="rotate(-90, 50, 50)"
+          />
+        </Svg>
         
         {/* Percentage text */}
         <Text style={[
           globalStyles.fontWeightBold,
           {
             fontSize: 16,
-            color: '#FFFFFF'
+            color: '#FFFFFF',
+            position: 'absolute'
           }
         ]}>
           {percentage}%
