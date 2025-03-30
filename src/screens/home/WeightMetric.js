@@ -3,7 +3,8 @@ import { View, Text, useColorScheme, Modal, TextInput, TouchableOpacity, Dimensi
 import { Entypo } from '@expo/vector-icons';
 import { Divider, Menu } from 'react-native-paper';
 import { styles } from '../../theme/styles';
-import { getWeightHistory, saveWeight, updateGoalWeight } from '../../database/functions/user';
+import { getWeightHistory, saveWeight, updateGoalWeight, getUserInfo } from '../../database/functions/user';
+import { parseWeight, convertWeight } from '../../utils/weightUtils';
 import Svg, { Circle } from 'react-native-svg';
 
 const WeightMetric = () => {
@@ -14,12 +15,26 @@ const WeightMetric = () => {
     const [goalModalVisible, setGoalModalVisible] = useState(false);
     const [weight, setWeight] = useState('');
     const [newGoalWeight, setNewGoalWeight] = useState('');
+    const [userMetric, setUserMetric] = useState("kg");
     const [metric, setMetric] = useState("kg");
     const [goalMetric, setGoalMetric] = useState("kg");
     const [goalWeight, setGoalWeight] = useState(null);
     const [weightHistory, setWeightHistory] = useState([]);
     const [currentWeight, setCurrentWeight] = useState(null);
     const [startWeight, setStartWeight] = useState(null);
+
+    const fetchUserInfo = async () => {
+        try {
+            const userInfo = await getUserInfo();
+            if (userInfo && userInfo.selected_metric) {
+                setUserMetric(userInfo.selected_metric);
+                setMetric(userInfo.selected_metric);
+                setGoalMetric(userInfo.selected_metric);
+            }
+        } catch (error) {
+            console.error("Error fetching user info:", error);
+        }
+    };
 
     const fetchWeightHistory = async () => {
         try {
@@ -34,6 +49,7 @@ const WeightMetric = () => {
     };
 
     useEffect(() => {
+        fetchUserInfo();
         fetchWeightHistory();
     }, []);
 
@@ -47,9 +63,10 @@ const WeightMetric = () => {
     const toggleMetric = () => setMetric(prevMetric => prevMetric === 'kg' ? 'lbs' : 'kg');
 
     const openGoalModal = () => {
-        // Initialize with current goal weight
+        // Initialize with current goal weight converted to the user's preferred unit
         if (goalWeight) {
-            setNewGoalWeight(goalWeight.toString());
+            const convertedWeight = convertWeight(goalWeight, goalMetric);
+            setNewGoalWeight(convertedWeight.toFixed(2).toString());
         }
         setGoalModalVisible(true);
         closeMenu();
@@ -95,16 +112,30 @@ const WeightMetric = () => {
     };
 
     const getWeightDifferenceInfo = () => {
-        if (!weightHistory.length || goalWeight === null) {
+        if (!weightHistory.length || goalWeight === null || currentWeight === null) {
             return { difference: 0, action: "lose/gain" };
         }
         
-        const difference = Math.abs(currentWeight - goalWeight).toFixed(1);
+        // Calculate the absolute difference between current weight and goal weight
+        const difference = Math.abs(currentWeight - goalWeight);
+        
+        // Safely convert the difference using the user's preferred metric
+        let differenceConverted;
+        try {
+            const converted = convertWeight(difference, userMetric);
+            // Make sure we have a valid number before using toFixed
+            differenceConverted = converted !== undefined && !isNaN(converted) ? 
+                parseFloat(converted).toFixed(2) : 
+                "0.00";
+        } catch (error) {
+            console.error("Error converting weight difference:", error);
+            differenceConverted = "0.00";
+        }
         
         if (currentWeight > goalWeight) {
-            return { difference, action: "lose" };
+            return { difference: differenceConverted, action: "lose" };
         } else if (currentWeight < goalWeight) {
-            return { difference, action: "gain" };
+            return { difference: differenceConverted, action: "gain" };
         } else {
             return { difference: 0, action: "maintain", goalReached: true };
         }
@@ -238,7 +269,7 @@ const WeightMetric = () => {
                             />
                         </Svg>
                         
-                        {/* Inner circle with kg text */}
+                        {/* Inner circle with weight text */}
                         <View style={{
                             position: 'absolute',
                             width: '70%',
@@ -255,8 +286,9 @@ const WeightMetric = () => {
                                     color: '#FFFFFF',
                                     textAlign: 'center'
                                 }
-                            ]}>
-                                { `${getWeightDifferenceInfo().difference}kg`}
+                            ]}
+                            numberOfLines={2}>
+                                { `${getWeightDifferenceInfo().difference} ${userMetric}`}
                             </Text>
                         </View>
                     </View>
@@ -388,11 +420,7 @@ const WeightMetric = () => {
                         </View>
                         
                         <Text style={{ marginBottom: 10, color: isDarkMode ? "#FFF" : "#000" }}>
-                            Current goal: {goalWeight ? 
-                                goalMetric === "kg" ? 
-                                    `${goalWeight.toFixed(1)} kg` : 
-                                    `${(goalWeight * 2.20462).toFixed(1)} lbs` 
-                                : "Not set"}
+                            Current goal: {goalWeight ? parseWeight(goalWeight, goalMetric) : "Not set"}
                         </Text>
                         
                         <TextInput

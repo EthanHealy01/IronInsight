@@ -83,7 +83,7 @@ export default function WorkoutProgressCard({
             marginBottom: 5
           }
         ]}>
-          Your Current Workout Progress
+          Your current workout progress
         </Text>
         <Text style={[
           globalStyles.fontSizeRegular,

@@ -8,6 +8,7 @@ export const styles = () => {
         container: {
             flex: 1,
             backgroundColor: isDarkMode ? '#232323' : '#F5F5F5',
+            overflow: 'visible',
         },
         actionSheet: {
             padding: 20,
@@ -235,8 +236,8 @@ export const styles = () => {
             alignItems: 'center',
             padding: 20,
             backgroundColor: isDarkMode
-                ? 'rgba(0,0,0,0.9)'
-                : 'rgba(255,255,255,0.9)',
+                ? 'rgba(0,0,0,0.4)'
+                : 'rgba(255, 255, 255, 0.6)',
         },
         modalContent: {
             width: '100%',

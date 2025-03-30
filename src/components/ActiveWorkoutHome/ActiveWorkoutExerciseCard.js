@@ -14,6 +14,7 @@ import {
   faPlus,
   faTimes,
   faCheck,
+  faCopy,
 } from '@fortawesome/free-solid-svg-icons';
 import ExerciseGifImage from '../ExerciseGifImage';
 
@@ -156,12 +157,25 @@ const ActiveWorkoutExerciseCard = ({
                     </View>
                   );
                 })}
+                {/* Add Autofill column header */}
+                <View style={{ width: 60, marginRight: 10 }}>
+                  <Text
+                    style={[
+                      globalStyles.fontSizeSmall,
+                      { color: isDark ? '#FFFFFF' : '#000000' },
+                    ]}
+                  >
+                    Autofill
+                  </Text>
+                </View>
               </View>
 
               {/* Each set row */}
               {exercise.currentSets.map((setObj, setIndex) => {
                 // We'll show placeholders from lastSets[setIndex]
                 const lastSetObj = lastSets[setIndex] || {};
+                const hasLastData = lastSetObj && Object.keys(lastSetObj).length > 0;
+                
                 return (
                   <View key={setIndex} style={[globalStyles.flexRow, { marginBottom: 10 }]}>
                     <View style={{ width: 40, marginRight: 10 }}>
@@ -173,20 +187,6 @@ const ActiveWorkoutExerciseCard = ({
                       >
                         {setIndex + 1}
                       </Text>
-
-                      {/* "Use Last" button if we have last data for this set */}
-                      {lastSetObj && Object.keys(lastSetObj).length > 0 && (
-                        <TouchableOpacity onPress={() => handleAutofillSet(exId, setIndex)}>
-                          <Text
-                            style={[
-                              globalStyles.fontSizeSmall,
-                              { color: '#007AFF', textDecorationLine: 'underline' },
-                            ]}
-                          >
-                            Use Last
-                          </Text>
-                        </TouchableOpacity>
-                      )}
                     </View>
 
                     {exercise.activeMetrics.map((metric) => {
@@ -214,6 +214,28 @@ const ActiveWorkoutExerciseCard = ({
                         />
                       );
                     })}
+                    
+                    {/* Autofill button on the right side */}
+                    <View style={{ width: 60, marginRight: 10, justifyContent: 'center' }}>
+                      {hasLastData && (
+                        <TouchableOpacity 
+                          onPress={() => handleAutofillSet(exId, setIndex)}
+                          style={{
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: 'transparent',
+                            borderRadius: 5,
+                            padding: 5,
+                          }}
+                        >
+                          <FontAwesomeIcon 
+                            icon={faCopy} 
+                            size={14} 
+                            color={isDark ? "#FFFFFF" : "#000000"}
+                          />
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 );
               })}

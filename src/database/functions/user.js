@@ -3,24 +3,34 @@
 import { db } from "../db";
 
 // Save user information to the database
-export async function saveUserInfo(name, sex, age, weight, goalWeight, heightCm) {
+export async function saveUserInfo(name, sex, age, weight, goalWeight, heightCm, selectedMetric = 'kg') {
   try {
     const database = await db;
     const createdAt = new Date().toISOString();
 
-    // Insert or update user_info
-    await database.runAsync(`
-      INSERT INTO user_info (name, sex, age, weight, goal_weight, height, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(name) DO UPDATE SET
-        name = excluded.name,
-        sex = excluded.sex,
-        age = excluded.age,
-        weight = excluded.weight,
-        goal_weight = excluded.goal_weight,
-        height = excluded.height,
-        updated_at = excluded.updated_at
-    `, [name, sex, age, weight, goalWeight, height, createdAt, createdAt]);
+    // Check if there's an existing user record
+    const existingUser = await database.getAllAsync(`SELECT id FROM user_info LIMIT 1`);
+    
+    if (existingUser && existingUser.length > 0) {
+      // Update existing user
+      await database.runAsync(`
+        UPDATE user_info SET
+          name = ?,
+          sex = ?,
+          age = ?,
+          weight = ?,
+          goal_weight = ?,
+          height = ?,
+          selected_metric = ?,
+          updated_at = ?
+      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, createdAt]);
+    } else {
+      // Insert new user
+      await database.runAsync(`
+        INSERT INTO user_info (name, sex, age, weight, goal_weight, height, selected_metric, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, createdAt, createdAt]);
+    }
 
     // If weight is provided, insert into weight_history
     if (weight) {
@@ -111,6 +121,33 @@ export const updateGoalWeight = async (goalWeight) => {
     return true;
   } catch (error) {
     console.error("Error updating goal weight:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update the user's preferred weight metric (kg or lbs)
+ * @param {string} metric - The preferred metric ('kg' or 'lbs')
+ * @returns {boolean} True if successful
+ */
+export const updateSelectedMetric = async (metric) => {
+  try {
+    if (metric !== 'kg' && metric !== 'lbs') {
+      throw new Error("Invalid metric. Must be 'kg' or 'lbs'");
+    }
+    
+    const database = await db;
+    const updatedAt = new Date().toISOString();
+    
+    await database.runAsync(`
+      UPDATE user_info 
+      SET selected_metric = ?, updated_at = ?
+    `, [metric, updatedAt]);
+    
+    console.log("Selected metric updated successfully:", metric);
+    return true;
+  } catch (error) {
+    console.error("Error updating selected metric:", error);
     throw error;
   }
 };

@@ -4,23 +4,10 @@ import { styles } from '../theme/styles';
 export default function AnalyticsHomeScreen({ navigation }) {
   const globalStyles = styles();
   return (
-    <View style={globalStyles.container}>
-      <Text>Analytics Overview</Text>
-
-      {/* Example button to navigate to sub-analytics */}
-      <Button
-        title="Go to Weight Trends"
-        onPress={() => navigation.navigate('SubAnalytics', {
-          type: 'weightTrends'
-        })}
-      />
-
-      <Button
-        title="Go to Workout Frequency"
-        onPress={() => navigation.navigate('SubAnalytics', {
-          type: 'workoutFrequency'
-        })}
-      />
+    <View style={[globalStyles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <Text style={[globalStyles.fontSizeLarge, globalStyles.fontWeightSemiBold]}>
+        Coming Soon!
+      </Text>
     </View>
   );
 }

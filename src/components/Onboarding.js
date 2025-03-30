@@ -29,6 +29,7 @@ const Onboarding = ({ onComplete }) => {
   const [heightInches, setHeightInches] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [useMetric, setUseMetric] = useState(false);
+  const [useKg, setUseKg] = useState(true); // true = kg (default), false = lbs
 
   const handleNext = () => {
     if (step === 2 && !name.trim()) {
@@ -39,7 +40,12 @@ const Onboarding = ({ onComplete }) => {
       setStep(step + 1);
     } else {
       const height = useMetric ? parseFloat(heightCm) : convertToCm(heightFeet, heightInches);
-      saveUserInfo(name, sex, age, weight, goalWeight, height);
+      
+      // Convert weight and goalWeight from lbs to kg if not using kg
+      const weightInKg = useKg ? parseFloat(weight) : convertToKg(weight);
+      const goalWeightInKg = useKg ? parseFloat(goalWeight) : convertToKg(goalWeight);
+      
+      saveUserInfo(name, sex, age, weightInKg, goalWeightInKg, height);
       onComplete();
     }
   };
@@ -54,6 +60,13 @@ const Onboarding = ({ onComplete }) => {
     const totalInches = parseInt(feet || 0) * 12 + parseInt(inches || 0);
     return totalInches * 2.54;
   };
+
+  const convertToKg = (lbs) => {
+    return parseFloat(lbs || 0) * 0.453592;
+  };
+
+  // Get the appropriate weight unit label based on useKg state
+  const weightUnit = useKg ? 'kg' : 'lbs';
 
   return (
     <SafeAreaView 
@@ -147,11 +160,11 @@ const Onboarding = ({ onComplete }) => {
             />
 
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
-              <Text style={{ color: '#fff', marginRight: 10 }}>Use Metric (cm)</Text>
+              <Text style={{ color: '#fff', marginRight: 10 }}>Use Imperial (ft/in)</Text>
               <Switch
-                trackColor={{ true: '#FFA500', false: '#ccc' }}
-                value={useMetric}
-                onValueChange={setUseMetric}
+                trackColor={{ false: '#FFA500', true: '#ccc' }}
+                value={!useMetric}
+                onValueChange={(value) => setUseMetric(!value)}
               />
             </View>
 
@@ -250,9 +263,18 @@ const Onboarding = ({ onComplete }) => {
               Almost there! Enter your weight goals
             </Text>
 
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15 }}>
+              <Text style={{ color: '#fff', marginRight: 10 }}>Use lbs</Text>
+              <Switch
+                trackColor={{ false: '#FFA500', true: '#ccc' }}
+                value={!useKg}
+                onValueChange={(value) => setUseKg(!value)}
+              />
+            </View>
+
             <TextInput
               style={stylesForDark.input}
-              placeholder="Weight"
+              placeholder={`Weight (${weightUnit})`}
               placeholderTextColor="#ccc"
               value={weight}
               onChangeText={setWeight}
@@ -260,7 +282,7 @@ const Onboarding = ({ onComplete }) => {
             />
             <TextInput
               style={stylesForDark.input}
-              placeholder="Goal Weight"
+              placeholder={`Goal Weight (${weightUnit})`}
               placeholderTextColor="#ccc"
               value={goalWeight}
               onChangeText={setGoalWeight}

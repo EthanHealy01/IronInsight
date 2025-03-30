@@ -231,16 +231,43 @@ useEffect(() => {
     }
   }
 
+  // Add a helper function to check if a set is complete
+  const isSetComplete = (setObj) => {
+    // If all active metrics have a non-empty value
+    return Object.values(setObj).every(value => value !== '');
+  };
+
+  // Update the function to calculate completed sets
+  const calculateCompletedSets = () => {
+    if (!workoutData?.exercises) return 0;
+    
+    let completedSetsCount = 0;
+    
+    workoutData.exercises.forEach((ex) => {
+      // For exercises marked as complete via button, count all sets
+      if (completedExercises.has(ex.id)) {
+        completedSetsCount += ex.currentSets.length;
+      } else {
+        // Otherwise only count sets where all fields are filled
+        ex.currentSets.forEach(setObj => {
+          if (isSetComplete(setObj)) {
+            completedSetsCount++;
+          }
+        });
+      }
+    });
+    
+    return completedSetsCount;
+  };
+
   // 4) Calculate progress
   let totalSets = 0;
   let completedSetsCount = 0;
   if (workoutData?.exercises) {
     workoutData.exercises.forEach((ex) => {
       totalSets += ex.currentSets.length;
-      if (completedExercises.has(ex.id)) {
-        completedSetsCount += ex.currentSets.length;
-      }
     });
+    completedSetsCount = calculateCompletedSets();
   }
 
   // Calculate remaining sets and estimated time
@@ -253,14 +280,7 @@ useEffect(() => {
     setExpandedExercise((prev) => (prev === exerciseId ? null : exerciseId));
   };
 
-  // Add this helper function near the top of the component
-  const checkExerciseCompletion = (exercise) => {
-    return exercise.currentSets.every(setObj => 
-      Object.values(setObj).some(value => value !== '')
-    );
-  };
-
-  // Modify handleSetChange to properly save text input values
+  // Modify handleSetChange to update progress in real-time
   const handleSetChange = (exerciseId, setIndex, metricLabel, text) => {
     console.log(`💾 Saving: Exercise ${exerciseId}, Set ${setIndex}, ${metricLabel}: ${text}`);
     
@@ -328,8 +348,53 @@ useEffect(() => {
     });
   };
 
-  // Modify the handleFinishExercise function
+  // Modify the handleFinishExercise function to auto-fill incomplete sets
   const handleFinishExercise = (exercise) => {
+    const isCurrentlyFinished = completedExercises.has(exercise.id);
+    
+    // If the exercise is not currently marked as finished, make sure all set fields are filled
+    if (!isCurrentlyFinished) {
+      setWorkoutData((prev) => {
+        if (!prev) return prev;
+        
+        // Clone the exercise list
+        const updatedExercises = prev.exercises.map((ex) => {
+          if (ex.id === exercise.id) {
+            // For the target exercise, fill all empty fields with "Completed"
+            const updatedSets = ex.currentSets.map((setObj) => {
+              const updatedSet = {...setObj};
+              
+              // For each metric that has an empty value, fill it
+              ex.activeMetrics.forEach((metric) => {
+                if (!updatedSet[metric.label] || updatedSet[metric.label] === '') {
+                  updatedSet[metric.label] = 'Completed';
+                }
+              });
+              
+              return updatedSet;
+            });
+            
+            return {
+              ...ex,
+              currentSets: updatedSets
+            };
+          }
+          return ex;
+        });
+        
+        const updatedData = {
+          ...prev,
+          exercises: updatedExercises
+        };
+        
+        // Save to AsyncStorage
+        saveWorkoutProgress(updatedData)
+          .catch(error => console.error('❌ Save failed:', error));
+          
+        return updatedData;
+      });
+    }
+
     setCompletedExercises((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(exercise.id)) {

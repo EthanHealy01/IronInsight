@@ -4,6 +4,8 @@ import { styles } from '../../theme/styles';
 import { getAllPreviousWorkouts, getWorkoutDetails, deleteWorkoutSession } from '../../database/functions/workouts';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faChevronRight, faTimes, faTrash, faList, faClose } from '@fortawesome/free-solid-svg-icons';
+import { parseWeight } from '../../utils/weightUtils';
+import { getUserInfo } from '../../database/functions/user';
 
 const formatDate = (dateString) => {
   const date = new Date(dateString);
@@ -46,10 +48,13 @@ const StatComparison = ({ label, value, change, icon }) => {
     <View style={{ marginBottom: 5 }}>
       <Text style={globalStyles.fontWeightRegular}>
         {icon} {label}: {value} {' '}
+        {/* Don't show change text for PR Count and Duration */}
+        {!["PR Count", "Duration"].includes(label) &&
         <Text style={{ color: changeColor, fontWeight: 'bold' }}>
           {changeSymbol} {changeText}
         </Text>
-      </Text>
+        }
+          </Text>
     </View>
   );
 };
@@ -57,6 +62,7 @@ const StatComparison = ({ label, value, change, icon }) => {
 const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
   const [loading, setLoading] = useState(true);
   const [details, setDetails] = useState(null);
+  const [userMetric, setUserMetric] = useState('kg');
   const globalStyles = styles();
   const [confirmationButtonVisible, setConfirmationButtonVisible] = useState(false);
   const scrollViewRef = useRef(null);
@@ -75,6 +81,21 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
   const hideConfirmationButton = () => {
     setConfirmationButtonVisible(false);
   };
+
+  useEffect(() => {
+    async function fetchUserInfo() {
+      try {
+        const userInfo = await getUserInfo();
+        if (userInfo && userInfo.selected_metric) {
+          setUserMetric(userInfo.selected_metric);
+        }
+      } catch (error) {
+        console.error("Error fetching user info:", error);
+      }
+    }
+    
+    fetchUserInfo();
+  }, []);
 
   useEffect(() => {
     async function fetchWorkoutDetails() {
@@ -185,15 +206,15 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
               />
               
               <StatComparison 
-                label="Total Volume" 
-                value={`${details.totalVolume} lbs`}
+                label="Total Load" 
+                value={parseWeight(details.totalVolume, userMetric)}
                 change={details.comparison?.volumeChange}
                 icon="📊"
               />
               
               <StatComparison 
-                label="Max Load" 
-                value={`${details.maxLoad} lbs`}
+                label="Heaviest Weight Moved" 
+                value={parseWeight(details.maxLoad, userMetric)}
                 change={details.comparison?.maxLoadChange}
                 icon="🏋️‍♂️"
               />
@@ -262,14 +283,14 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete }) => {
                     </View>
                   </View>
                   <Text style={globalStyles.fontWeightRegular}>
-                    Volume: {exercise.volume} lbs
+                    Volume: {parseWeight(exercise.volume, userMetric)}
                   </Text>
                   <Text style={globalStyles.fontWeightRegular}>
                     Sets: {exercise.sets.length}
                   </Text>
                   {exercise.maxWeight > 0 && (
                     <Text style={globalStyles.fontWeightRegular}>
-                      Max Weight: {exercise.maxWeight} lbs
+                      Max Weight: {parseWeight(exercise.maxWeight, userMetric)}
                     </Text>
                   )}
                   {exercise.maxReps > 0 && (

@@ -19,6 +19,7 @@ async function createTablesIfNotExist(database) {
       sex TEXT,
       name TEXT,
       profile_picture TEXT,
+      selected_metric TEXT DEFAULT 'kg',
       created_at TEXT,
       updated_at TEXT
     );
