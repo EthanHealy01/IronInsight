@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -28,10 +28,12 @@ import {
   faChevronRight,
   faWeightScale,
   faWeightHanging,
-  faExchangeAlt
+  faExchangeAlt,
+  faImage
 } from '@fortawesome/free-solid-svg-icons';
 import { getUserInfo, saveUserInfo, updateSelectedMetric } from '../database/functions/user';
 import GenderSelector from '../components/GenderSelector';
+import ProfileImagePicker from '../components/ProfileImagePicker';
 
 export default function ProfileScreen({ navigation }) {
   const globalStyles = styles();
@@ -55,6 +57,9 @@ export default function ProfileScreen({ navigation }) {
   const [useImperialHeight, setUseImperialHeight] = useState(false);
   const [feet, setFeet] = useState('');
   const [inches, setInches] = useState('');
+  
+  // Reference to the ProfileImagePicker
+  const profilePickerRef = useRef(null);
 
   useEffect(() => {
     fetchUserInfo();
@@ -178,6 +183,13 @@ export default function ProfileScreen({ navigation }) {
 
   const toggleHeightUnit = () => {
     setUseImperialHeight(!useImperialHeight);
+  };
+  
+  // Helper function to trigger the profile picker
+  const openProfilePicker = () => {
+    if (profilePickerRef.current && profilePickerRef.current.showImagePickerOptions) {
+      profilePickerRef.current.showImagePickerOptions();
+    }
   };
 
   const SettingItem = ({ icon, title, onPress, danger = false }) => (
@@ -521,35 +533,44 @@ export default function ProfileScreen({ navigation }) {
           Profile & Settings
         </Text>
         
-        {/* User Info Section */}
-        <SectionHeader title="Your Information" />
-        
+        {/* Profile Section - Prominently displayed */}
         <View style={[
-          localStyles.userInfoCard,
+          localStyles.profileCard,
           { backgroundColor: isDark ? '#1C1C1E' : 'white' }
         ]}>
-          <Text style={[globalStyles.fontWeightBold, { fontSize: 18 }]}>
-            {userInfo?.name || 'Your Name'}
-          </Text>
-          
-          <View style={{ flexDirection: 'row', marginTop: 5 }}>
-            {userInfo?.sex && (
-              <Text style={globalStyles.fontWeightRegular}>
-                {userInfo.sex} • 
-              </Text>
-            )}
-            {userInfo?.age && (
-              <Text style={globalStyles.fontWeightRegular}>
-                {' '}{userInfo.age} years • 
-              </Text>
-            )}
-            {userInfo?.height && (
-              <Text style={globalStyles.fontWeightRegular}>
-                {' '}{userInfo.height} cm
-              </Text>
-            )}
+          <View style={{ alignItems: 'center', padding: 20 }}>
+            <ProfileImagePicker 
+              size={120} 
+              ref={profilePickerRef}
+              style={{ marginBottom: 15 }}
+            />
+            
+            <Text style={[globalStyles.fontWeightBold, { fontSize: 22 }]}>
+              {userInfo?.name || 'Your Name'}
+            </Text>
+            
+            <View style={{ flexDirection: 'row', marginTop: 5, marginBottom: 15 }}>
+              {userInfo?.sex && (
+                <Text style={globalStyles.fontWeightRegular}>
+                  {userInfo.sex} • 
+                </Text>
+              )}
+              {userInfo?.age && (
+                <Text style={globalStyles.fontWeightRegular}>
+                  {' '}{userInfo.age} years • 
+                </Text>
+              )}
+              {userInfo?.height && (
+                <Text style={globalStyles.fontWeightRegular}>
+                  {' '}{userInfo.height} cm
+                </Text>
+              )}
+            </View>
           </View>
         </View>
+        
+        {/* Your Information Section */}
+        <SectionHeader title="Your Information" />
         
         <SettingItem 
           icon={faUser} 
@@ -614,6 +635,15 @@ const localStyles = StyleSheet.create({
   userInfoCard: {
     borderRadius: 12,
     padding: 16,
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2
+  },
+  profileCard: {
+    borderRadius: 12,
     marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

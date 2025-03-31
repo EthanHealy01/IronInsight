@@ -3,7 +3,7 @@
 import { db } from "../db";
 
 // Save user information to the database
-export async function saveUserInfo(name, sex, age, weight, goalWeight, heightCm, selectedMetric = 'kg') {
+export async function saveUserInfo(name, sex, age, weight, goalWeight, heightCm, selectedMetric = 'kg', profilePicture = null) {
   try {
     const database = await db;
     const createdAt = new Date().toISOString();
@@ -22,14 +22,15 @@ export async function saveUserInfo(name, sex, age, weight, goalWeight, heightCm,
           goal_weight = ?,
           height = ?,
           selected_metric = ?,
+          profile_picture = ?,
           updated_at = ?
-      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, createdAt]);
+      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, profilePicture, createdAt]);
     } else {
       // Insert new user
       await database.runAsync(`
-        INSERT INTO user_info (name, sex, age, weight, goal_weight, height, selected_metric, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, createdAt, createdAt]);
+        INSERT INTO user_info (name, sex, age, weight, goal_weight, height, selected_metric, profile_picture, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `, [name, sex, age, weight, goalWeight, heightCm, selectedMetric, profilePicture, createdAt, createdAt]);
     }
 
     // If weight is provided, insert into weight_history
@@ -148,6 +149,29 @@ export const updateSelectedMetric = async (metric) => {
     return true;
   } catch (error) {
     console.error("Error updating selected metric:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update the user's profile picture path
+ * @param {string} picturePath - Path to the profile picture file
+ * @returns {boolean} True if successful
+ */
+export const updateProfilePicture = async (picturePath) => {
+  try {
+    const database = await db;
+    const updatedAt = new Date().toISOString();
+    
+    await database.runAsync(`
+      UPDATE user_info 
+      SET profile_picture = ?, updated_at = ?
+    `, [picturePath, updatedAt]);
+    
+    console.log("Profile picture updated successfully:", picturePath);
+    return true;
+  } catch (error) {
+    console.error("Error updating profile picture:", error);
     throw error;
   }
 };

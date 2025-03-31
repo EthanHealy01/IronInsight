@@ -44,7 +44,10 @@ export default function HomeScreen() {
   }
 
   return (
-    <ScrollView style={[globalStyles.backgroundColor]}>
+    <ScrollView 
+      style={[globalStyles.backgroundColor]} 
+      showsVerticalScrollIndicator={false}
+    >
       <HomeHeader />
       {hasActiveWorkout && activeTemplateId !== null ? (
         <ActiveWorkoutHome template_id={activeTemplateId} />

@@ -48,6 +48,11 @@ const ActiveWorkoutExerciseCard = ({
 
   // We'll look up the "lastSets" array for placeholders
   const lastSets = previousSetData[exercise.name] || [];
+  
+  // Check if there's any autofill data available for this exercise
+  const hasAnyAutofillData = lastSets.length > 0 && lastSets.some(setData => 
+    setData && Object.keys(setData).length > 0
+  );
 
   return (
     <View
@@ -157,17 +162,19 @@ const ActiveWorkoutExerciseCard = ({
                     </View>
                   );
                 })}
-                {/* Add Autofill column header */}
-                <View style={{ width: 60, marginRight: 10 }}>
-                  <Text
-                    style={[
-                      globalStyles.fontSizeSmall,
-                      { color: isDark ? '#FFFFFF' : '#000000' },
-                    ]}
-                  >
-                    Autofill
-                  </Text>
-                </View>
+                {/* Only show Autofill column header if there's data available */}
+                {hasAnyAutofillData && (
+                  <View style={{ width: 60, marginRight: 10 }}>
+                    <Text
+                      style={[
+                        globalStyles.fontSizeSmall,
+                        { color: isDark ? '#FFFFFF' : '#000000' },
+                      ]}
+                    >
+                      Autofill
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* Each set row */}
@@ -215,27 +222,29 @@ const ActiveWorkoutExerciseCard = ({
                       );
                     })}
                     
-                    {/* Autofill button on the right side */}
-                    <View style={{ width: 60, marginRight: 10, justifyContent: 'center' }}>
-                      {hasLastData && (
-                        <TouchableOpacity 
-                          onPress={() => handleAutofillSet(exId, setIndex)}
-                          style={{
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            backgroundColor: 'transparent',
-                            borderRadius: 5,
-                            padding: 5,
-                          }}
-                        >
-                          <FontAwesomeIcon 
-                            icon={faCopy} 
-                            size={14} 
-                            color={isDark ? "#FFFFFF" : "#000000"}
-                          />
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                    {/* Only show Autofill button if there's data available for this set */}
+                    {hasAnyAutofillData && (
+                      <View style={{ width: 60, marginRight: 10, justifyContent: 'center' }}>
+                        {hasLastData && (
+                          <TouchableOpacity 
+                            onPress={() => handleAutofillSet(exId, setIndex)}
+                            style={{
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              backgroundColor: 'transparent',
+                              borderRadius: 5,
+                              padding: 5,
+                            }}
+                          >
+                            <FontAwesomeIcon 
+                              icon={faCopy} 
+                              size={14} 
+                              color={isDark ? "#FFFFFF" : "#000000"}
+                            />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
                   </View>
                 );
               })}
