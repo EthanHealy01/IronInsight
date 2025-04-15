@@ -39,11 +39,16 @@ const ExerciseSheet = (props) => {
             />
             </View>
             {exercise.name && (
+              <View style={{flexDirection:'row', alignItems: "baseline", marginBottom: 10}}>
               <Text
-                style={{ fontWeight: "bold", fontSize: 18, marginBottom: 10 }}
+                style={[globalStyles.fontSizeExtraLarge, globalStyles.fontWeightSemiBold]}
               >
-                {exercise.name}
+                {exercise.name} 
               </Text>
+              <Text style={[globalStyles.fontSizeSmall, globalStyles.grayText, {marginLeft: 5}]}>
+              #{exercise.id}
+              </Text>
+              </View>
             )}
             {/* Display extra data: target muscle group and secondary muscle groups */}
             {exercise.target && (

@@ -1,0 +1,138 @@
+[
+  {
+    "id": 1,
+    "title": "Push, Pull, Legs",
+    "description": "The classic 3-day split optimized by grouping muscles based on movement patterns. 'Push' days target chest, shoulders, and triceps; 'Pull' focuses on back and biceps; and 'Legs' hones in on the lower body. Ideal for intermediate lifters seeking consistent muscle growth across the week.",
+    "workouts": [
+      {
+        "title": "Push",
+        "description": "Chest, shoulders, and triceps are hit with heavy presses and isolated extensions to build pressing power and volume in the anterior upper body.",
+        "exercises": [
+          { "name": "dumbbell incline bench press", "id": "0314" },
+          { "name": "lever shoulder press v. 3", "id": "2318" },
+          { "name": "ez bar lying bent arms pullover", "id": "3010" },
+          { "name": "cable standing fly", "id": "0227" },
+          { "name": "dumbbell rear fly", "id": "0378" },
+          { "name": "cable front raise", "id": "0162" }
+        ]
+      },
+      {
+        "title": "Pull",
+        "description": "Focused on the posterior chain, this workout targets back width, thickness, and bicep hypertrophy using a combination of vertical and horizontal pulling movements.",
+        "exercises": [
+            { "name": "cable one arm bent over row", "id": "0189" },
+            { "name": "assisted pull-up", "id": "0017" },
+            { "name": "dumbbell one arm bent-over row", "id": "0292" },
+            { "name": "cable shrug", "id": "0220" },
+            { "name": "lever seated fly", "id": "0596" },
+            { "name": "decline crunch", "id": "0277" },
+            { "name": "barbell preacher curl", "id": "0070" }
+
+        ]
+      },
+      {
+        "title": "Legs",
+        "description": "This leg session blends bilateral and unilateral movements with an emphasis on the quads, glutes, hamstrings, and stabilizers.",
+        "exercises": [
+            { "name": "barbell full squat", "id": "0043" },
+            { "name": "barbell romanian deadlift", "id": "0085" },
+            { "name": "walking lunge", "id": "1460" },
+            { "name": "lever seated leg curl", "id": "0599" },
+            { "name": "lever seated calf raise", "id": "0594" },
+            { "name": "cable standing hip extension", "id": "0228" }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "title": "Upper / Lower Body Workout",
+    "description": "This two-day split maximizes muscle growth for lifters training twice per week by dividing the body into upper and lower segments. It's ideal for lifters with time constraints or who prefer higher volume per session.",
+    "workouts": [
+      {
+        "title": "Upper",
+        "description": "Targets all major upper body muscle groups with pressing and pulling movements plus arm isolation for balanced development.",
+        "exercises": [
+            { "name": "dumbbell incline bench press", "id": "0314" },
+            { "name": "barbell bent over row", "id": "0027" },
+            { "name": "dumbbell bench seated press", "id": "0290" },
+            { "name": "assisted pull-up", "id": "0017" },
+            { "name": "assisted chest dip (kneeling)", "id": "0009" },
+            { "name": "barbell preacher curl", "id": "0070" }
+        ]
+      },
+      {
+        "title": "Lower",
+        "description": "A well-rounded leg day including squats, unilateral movement, and hip hinge mechanics to grow all regions of the lower body.",
+        "exercises": [
+            { "name": "sled hack squat", "id": "0743" },
+            { "name": "barbell romanian deadlift", "id": "0085" },
+            { "name": "lever leg extension", "id": "0585" },
+            { "name": "hack calf raise", "id": "1383" },
+            { "name": "hanging leg raise", "id": "0472" },
+            { "name": "lever seated hip abduction", "id": "0597" }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "title": "Full Body Workout",
+    "description": "A one-day full-body plan. Perfect for busy schedules, this session maximizes training stimulus with high-impact compound movements.",
+    "workouts": [
+      {
+        "title": "Full Body A",
+        "description": "Efficiently stimulates all major muscle groups in one go using foundational lifts that recruit multiple joints and muscle chains.",
+        "exercises": [
+            { "name": "dumbbell incline bench press", "id": "0314" },
+            { "name": "sled hack squat", "id": "0743" },
+            { "name": "barbell bent over row", "id": "0027" },
+            { "name": "lever seated leg curl", "id": "0599" },
+            { "name": "barbell preacher curl", "id": "0070" },
+            { "name": "dumbbell arnold press", "id": "2137" }
+        ]
+      },
+      {
+        "title": "Full Body B",
+        "description": "Efficiently stimulates all major muscle groups in one go using foundational lifts that recruit multiple joints and muscle chains. (Same as A but with different exercises for a little variety)",
+        "exercises": [
+            {"name": "barbell bench press", "id": "0025"},
+            {"name": "barbell romanian deadlift", "id": "0085"},
+            {"name": "cable pulldown (pro lat bar)", "id": "0197"},
+            { "name": "walking lunge", "id": "1460" },
+            { "name": "cable lateral raise", "id": "0178" },
+            { "name": "cable kneeling crunch", "id": "0175" }
+ 
+        ]
+      }
+
+    ]
+  },
+  {
+    "id": 4,
+    "title": "BB / CT / LS / CC (not finished)",
+    "description": "A four-day program structured around synergistic muscle pairings—back & biceps, chest & triceps, legs & shoulders, and core & cardio—for comprehensive coverage and recovery.",
+    "workouts": [
+      {
+        "title": "Back & Biceps",
+        "description": "Blends horizontal and vertical pulling movements with bicep-specific curls to build pulling strength and arm size.",
+        "exercises": []
+      },
+      {
+        "title": "Chest & Triceps",
+        "description": "Chest volume is stacked with flat and upper variations, followed by direct triceps isolation for pressing power.",
+        "exercises": []
+      },
+      {
+        "title": "Legs & Shoulders",
+        "description": "Heavy squat variations combine with shoulder presses and raises to build both foundational leg strength and overhead pressing ability.",
+        "exercises": []
+      },
+      {
+        "title": "Core & Cardio",
+        "description": "Stabilizing core movements and conditioning-based circuits to increase muscular endurance and cardiovascular fitness.",
+        "exercises": []
+      }
+    ]
+  }
+]

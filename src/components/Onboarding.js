@@ -8,7 +8,9 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   SafeAreaView, 
-  Switch 
+  Switch, 
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import introImage from '../../assets/intro_image.png';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons';
@@ -76,6 +78,8 @@ const Onboarding = ({ onComplete }) => {
         { backgroundColor: '#000' }
       ]}
     >
+      {/* smooth transition when keyboard is open */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} >
       {/* STEP 1 */}
       {step === 1 && (
         <ImageBackground source={introImage} style={{ flex: 1, padding: 25 }}>
@@ -336,6 +340,7 @@ const Onboarding = ({ onComplete }) => {
           </View>
         </ImageBackground>
       )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

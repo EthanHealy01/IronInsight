@@ -5344,38 +5344,6 @@
   {
     "muscle_group": "lower legs",
     "equipment": "barbell",
-    "gifUrl": "calves/barbell_seated_calf_raise.gif",
-    "id": "1371",
-    "name": "barbell seated calf raise",
-    "target": "calves",
-    "secondary_muscle_groups": [
-      "hamstrings"
-    ],
-    "instructions": [
-      "Sit on a bench with your feet flat on the floor and a barbell resting on your thighs.",
-      "Place the balls of your feet on a raised platform, such as a block or step.",
-      "Lower your heels as far as possible, feeling a stretch in your calves.",
-      "Raise your heels as high as possible, contracting your calves.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 5,
-    "hypertrophy_rep_range": [
-      8,
-      12
-    ],
-    "strength_rep_range": [
-      4,
-      6
-    ],
-    "synonyms": [
-      "barbell calf raise",
-      "seated calf raise",
-      "barbell seated calf extension"
-    ]
-  },
-  {
-    "muscle_group": "lower legs",
-    "equipment": "barbell",
     "gifUrl": "calves/barbell_standing_calf_raise.gif",
     "id": "1372",
     "name": "barbell standing calf raise",
@@ -9343,41 +9311,6 @@
   {
     "muscle_group": "shoulders",
     "equipment": "dumbbell",
-    "gifUrl": "delts/dumbbell_rear_delt_row_shoulder.gif",
-    "id": "0377",
-    "name": "dumbbell rear delt row_shoulder",
-    "target": "delts",
-    "secondary_muscle_groups": [
-      "trapezius",
-      "rhomboids"
-    ],
-    "instructions": [
-      "Stand with your feet shoulder-width apart and knees slightly bent.",
-      "Hold a dumbbell in each hand with your palms facing your body.",
-      "Bend forward at the waist, keeping your back straight and your core engaged.",
-      "Extend your arms straight down towards the floor, with a slight bend in your elbows.",
-      "Raise the dumbbells out to the sides, squeezing your shoulder blades together.",
-      "Pause for a moment at the top, then slowly lower the dumbbells back to the starting position.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 3,
-    "hypertrophy_rep_range": [
-      8,
-      12
-    ],
-    "strength_rep_range": [
-      4,
-      6
-    ],
-    "synonyms": [
-      "rear delt dumbbell row",
-      "dumbbell reverse fly",
-      "bent-over dumbbell raise"
-    ]
-  },
-  {
-    "muscle_group": "shoulders",
-    "equipment": "dumbbell",
     "gifUrl": "delts/dumbbell_rear_fly.gif",
     "id": "0378",
     "name": "dumbbell rear fly",
@@ -9708,39 +9641,6 @@
       "seated side lateral raise",
       "seated dumbbell lateral raise",
       "seated shoulder fly"
-    ]
-  },
-  {
-    "muscle_group": "shoulders",
-    "equipment": "dumbbell",
-    "gifUrl": "delts/dumbbell_seated_shoulder_press__parallel_grip.gif",
-    "id": "0404",
-    "name": "dumbbell seated shoulder press (parallel grip)",
-    "target": "delts",
-    "secondary_muscle_groups": [
-      "triceps",
-      "upper back"
-    ],
-    "instructions": [
-      "Sit on a bench with a dumbbell in each hand, palms facing inward.",
-      "Raise the dumbbells to shoulder height, elbows bent and palms facing forward.",
-      "Press the dumbbells upward until your arms are fully extended overhead.",
-      "Pause for a moment at the top, then slowly lower the dumbbells back to shoulder height.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 2,
-    "hypertrophy_rep_range": [
-      8,
-      12
-    ],
-    "strength_rep_range": [
-      4,
-      6
-    ],
-    "synonyms": [
-      "dumbbell neutral grip shoulder press",
-      "dumbbell shoulder press with palms facing",
-      "dumbbell arnold press"
     ]
   },
   {
@@ -10735,39 +10635,6 @@
       "single-arm shoulder press",
       "one-arm shoulder press",
       "unilateral shoulder press"
-    ]
-  },
-  {
-    "muscle_group": "shoulders",
-    "equipment": "leverage machine",
-    "gifUrl": "delts/lever_seated_reverse_fly__parallel_grip.gif",
-    "id": "0601",
-    "name": "lever seated reverse fly (parallel grip)",
-    "target": "delts",
-    "secondary_muscle_groups": [
-      "trapezius",
-      "rhomboids"
-    ],
-    "instructions": [
-      "Adjust the seat height and position yourself on the machine with your chest against the pad and your feet flat on the floor.",
-      "Grasp the handles with a parallel grip, palms facing each other, and keep your arms slightly bent.",
-      "Exhale and squeeze your shoulder blades together as you pull the handles back and outward, away from your body.",
-      "Pause for a moment at the peak contraction, then inhale and slowly return to the starting position.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 5,
-    "hypertrophy_rep_range": [
-      10,
-      15
-    ],
-    "strength_rep_range": [
-      6,
-      8
-    ],
-    "synonyms": [
-      "machine rear delt fly",
-      "reverse pec deck",
-      "seated rear delt fly"
     ]
   },
   {
@@ -20644,43 +20511,6 @@
       "side stretch",
       "lateral side bend",
       "oblique stretch"
-    ]
-  },
-  {
-    "muscle_group": "back",
-    "equipment": "cable",
-    "gifUrl": "lats/twin_handle_parallel_grip_lat_pulldown.gif",
-    "id": "0818",
-    "name": "twin handle parallel grip lat pulldown",
-    "target": "lats",
-    "secondary_muscle_groups": [
-      "biceps",
-      "rhomboids",
-      "rear deltoids"
-    ],
-    "instructions": [
-      "Adjust the seat height and position yourself facing the cable machine.",
-      "Grasp the handles with an overhand grip, hands shoulder-width apart.",
-      "Sit down and position your thighs under the thigh pads, keeping your feet flat on the floor.",
-      "Lean back slightly and keep your chest up, maintaining a neutral spine.",
-      "Pull the handles down towards your upper chest, squeezing your shoulder blades together.",
-      "Pause for a moment at the bottom of the movement, feeling the contraction in your lats.",
-      "Slowly release the handles and return to the starting position.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 5,
-    "hypertrophy_rep_range": [
-      10,
-      15
-    ],
-    "strength_rep_range": [
-      6,
-      8
-    ],
-    "synonyms": [
-      "close grip lat pulldown",
-      "V-bar lat pulldown",
-      "neutral grip lat pulldown"
     ]
   },
   {
@@ -35035,39 +34865,6 @@
       "EZ bar lying row",
       "bent-over cambered bar row",
       "curved bar prone row"
-    ]
-  },
-  {
-    "muscle_group": "back",
-    "equipment": "body weight",
-    "gifUrl": "upper_back/chin_ups__narrow_parallel_grip.gif",
-    "id": "0253",
-    "name": "chin-ups (narrow parallel grip)",
-    "target": "upper back",
-    "secondary_muscle_groups": [
-      "biceps",
-      "forearms"
-    ],
-    "instructions": [
-      "Hang from a pull-up bar with a narrow parallel grip, palms facing towards you.",
-      "Engage your back muscles and pull your body up towards the bar, keeping your elbows close to your body.",
-      "Continue pulling until your chin is above the bar.",
-      "Pause for a moment at the top, then slowly lower your body back down to the starting position.",
-      "Repeat for the desired number of repetitions."
-    ],
-    "order": 3,
-    "hypertrophy_rep_range": [
-      10,
-      15
-    ],
-    "strength_rep_range": [
-      6,
-      8
-    ],
-    "synonyms": [
-      "close grip chin-ups",
-      "narrow grip pull-ups",
-      "parallel grip chin-ups"
     ]
   },
   {

@@ -299,7 +299,15 @@ export default function YourWorkouts({callback={}}) {
                     </View>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    onPress={() => navigation.navigate("CreateWorkout")}
+                    onPress={() => {
+                      // Get the parent (tab) navigator to ensure proper navigation
+                      const parentNav = navigation.getParent();
+                      if (parentNav) {
+                        parentNav.navigate("Workouts", {
+                          screen: "PreMadeWorkouts"
+                        });
+                      }
+                    }}
                     style={[
                       globalStyles.flexRow,
                       globalStyles.secondaryColor,
@@ -326,7 +334,7 @@ export default function YourWorkouts({callback={}}) {
                         minimumFontScale={0.5}
                         numberOfLines={1}
                       >
-                        Choose pre-made workout
+                        Choose pre-made routine
                       </Text>
                     </View>
                   </TouchableOpacity>
