@@ -1,256 +1,208 @@
-import { getDatabase } from '../database/database';
+import { db } from '../database/db';
 
 /**
- * Generate random workout data for analytics
- * @returns {Promise<void>}
+ * Generates sample workout data for analytics testing using existing table structure
  */
 export const generateSampleData = async () => {
   try {
-    const db = await getDatabase();
+    const database = await db;
+    if (!database) {
+      throw new Error('Database not initialized');
+    }
+
+    console.log('Generating sample workout data for analytics...');
+
+    // Create some sample workout templates
+    const templateNames = ['Strength', 'Cardio', 'Flexibility', 'Push', 'Pull', 'Legs'];
+    const templateIds = [];
     
-    // Clear existing data
-    await clearExistingData(db);
+    // First clear any existing data (optional)
+    // Uncomment if you want to clear existing data
+    /*
+    await database.execAsync('DELETE FROM session_sets');
+    await database.execAsync('DELETE FROM session_exercises');
+    await database.execAsync('DELETE FROM workout_sessions');
+    await database.execAsync('DELETE FROM template_exercises');
+    await database.execAsync('DELETE FROM workout_templates');
+    */
+
+    // Create templates
+    for (const name of templateNames) {
+      // Check if template already exists
+      const existingTemplate = await database.getAllAsync(
+        'SELECT id FROM workout_templates WHERE name = ?',
+        [name]
+      );
+      
+      let templateId;
+      if (existingTemplate.length > 0) {
+        templateId = existingTemplate[0].id;
+      } else {
+        // Create new template
+        const result = await database.runAsync(
+          'INSERT INTO workout_templates (name, created_at, updated_at) VALUES (?, ?, ?)',
+          [name, new Date().toISOString(), new Date().toISOString()]
+        );
+        templateId = result.lastInsertRowId;
+      }
+      
+      templateIds.push(templateId);
+    }
+
+    // Create template exercises for each template
+    const exercisesByTemplate = {
+      'Strength': ['Bench Press', 'Squat', 'Deadlift', 'Shoulder Press'],
+      'Cardio': ['Running', 'Cycling', 'Jump Rope', 'Rowing'],
+      'Flexibility': ['Yoga', 'Stretching', 'Pilates', 'Foam Rolling'],
+      'Push': ['Bench Press', 'Incline Press', 'Shoulder Press', 'Tricep Extension'],
+      'Pull': ['Pull-up', 'Barbell Row', 'Lat Pulldown', 'Bicep Curl'],
+      'Legs': ['Squat', 'Deadlift', 'Leg Press', 'Calf Raise']
+    };
+
+    for (let i = 0; i < templateIds.length; i++) {
+      const templateId = templateIds[i];
+      const templateName = templateNames[i];
+      const exercises = exercisesByTemplate[templateName] || [];
+      
+      // Check if template already has exercises
+      const existingExercises = await database.getAllAsync(
+        'SELECT id FROM template_exercises WHERE workout_template_id = ?',
+        [templateId]
+      );
+      
+      // If no exercises, add them
+      if (existingExercises.length === 0) {
+        for (const exerciseName of exercises) {
+          // Define metric configuration based on exercise type
+          const isStrengthExercise = ['Bench Press', 'Squat', 'Deadlift', 'Shoulder Press', 
+                                     'Incline Press', 'Pull-up', 'Barbell Row', 'Lat Pulldown',
+                                     'Tricep Extension', 'Bicep Curl', 'Leg Press', 'Calf Raise'].includes(exerciseName);
+          
+          const isCardioExercise = ['Running', 'Cycling', 'Jump Rope', 'Rowing'].includes(exerciseName);
+          
+          await database.runAsync(
+            `INSERT INTO template_exercises 
+            (workout_template_id, exercise_name, sets, metrics, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              templateId,
+              exerciseName,
+              3, // Default 3 sets
+              JSON.stringify({
+                weight: { enabled: isStrengthExercise },
+                reps: { enabled: !isCardioExercise },
+                time: { enabled: isCardioExercise }
+              }),
+              new Date().toISOString(),
+              new Date().toISOString()
+            ]
+          );
+        }
+      }
+    }
+
+    // Create workout sessions over the past 3 months
+    const today = new Date();
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     
-    // Generate workout types
-    const workoutTypes = ["Push", "Pull", "Legs", "Core"];
-    
-    // Generate workouts for each type
-    for (const type of workoutTypes) {
-      await generateWorkoutsForType(db, type);
+    // Generate 2 workouts per week for each template
+    for (let d = new Date(threeMonthsAgo); d <= today; d.setDate(d.getDate() + 3)) {
+      // For each template
+      for (let i = 0; i < templateIds.length; i++) {
+        const templateId = templateIds[i];
+        const templateName = templateNames[i];
+        
+        // 80% chance to create a session
+        if (Math.random() < 0.8) {
+          const sessionDate = new Date(d);
+          const duration = Math.floor(Math.random() * 60) + 30; // 30-90 minutes
+          
+          // Create session
+          const sessionResult = await database.runAsync(
+            `INSERT INTO workout_sessions 
+            (workout_template_id, session_date, duration, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?)`,
+            [
+              templateId,
+              sessionDate.toISOString(),
+              duration,
+              new Date().toISOString(),
+              new Date().toISOString()
+            ]
+          );
+          
+          const sessionId = sessionResult.lastInsertRowId;
+          
+          // Get the exercises for this template
+          const templateExercises = await database.getAllAsync(
+            'SELECT id, exercise_name, metrics FROM template_exercises WHERE workout_template_id = ?',
+            [templateId]
+          );
+          
+          // Create session exercises
+          for (const templateExercise of templateExercises) {
+            const sessionExerciseResult = await database.runAsync(
+              `INSERT INTO session_exercises 
+              (workout_session_id, exercise_name, created_at, updated_at) 
+              VALUES (?, ?, ?, ?)`,
+              [
+                sessionId,
+                templateExercise.exercise_name,
+                new Date().toISOString(),
+                new Date().toISOString()
+              ]
+            );
+            
+            const sessionExerciseId = sessionExerciseResult.lastInsertRowId;
+            
+            // Create sets for this exercise
+            const numSets = Math.floor(Math.random() * 2) + 3; // 3-4 sets
+            for (let s = 0; s < numSets; s++) {
+              // Determine if it's a strength exercise
+              const isStrengthExercise = ['Bench Press', 'Squat', 'Deadlift', 'Shoulder Press', 
+                                         'Incline Press', 'Pull-up', 'Barbell Row', 'Lat Pulldown',
+                                         'Tricep Extension', 'Bicep Curl', 'Leg Press', 'Calf Raise'].includes(templateExercise.exercise_name);
+              
+              // Generate random metrics based on exercise type
+              const metrics = {};
+              
+              // Weight for strength exercises (30-100kg)
+              if (isStrengthExercise) {
+                metrics.weight = Math.floor(Math.random() * 70) + 30;
+              } else {
+                metrics.weight = 0;
+              }
+              
+              // Reps for all exercises (8-15 reps)
+              metrics.reps = Math.floor(Math.random() * 8) + 8;
+              
+              // Time for cardio exercises (30-300 seconds)
+              if (templateExercise.exercise_name.match(/running|cycling|jump rope|rowing/i)) {
+                metrics.time = Math.floor(Math.random() * 270) + 30;
+              }
+              
+              await database.runAsync(
+                `INSERT INTO session_sets 
+                (session_exercise_id, metrics, created_at, updated_at) 
+                VALUES (?, ?, ?, ?)`,
+                [
+                  sessionExerciseId,
+                  JSON.stringify(metrics),
+                  new Date().toISOString(),
+                  new Date().toISOString()
+                ]
+              );
+            }
+          }
+        }
+      }
     }
     
-    console.log('Sample data generated successfully');
+    console.log('Sample data generated successfully!');
     return true;
   } catch (error) {
     console.error('Error generating sample data:', error);
     throw error;
   }
-};
-
-/**
- * Clear existing data from the database
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @returns {Promise<void>}
- */
-const clearExistingData = async (db) => {
-  try {
-    await executeDbQuery(db, 'DELETE FROM exercise_sets', []);
-    await executeDbQuery(db, 'DELETE FROM workout_exercises', []);
-    await executeDbQuery(db, 'DELETE FROM exercises', []);
-    await executeDbQuery(db, 'DELETE FROM workouts', []);
-  } catch (error) {
-    console.error('Error clearing existing data:', error);
-    throw error;
-  }
-};
-
-/**
- * Generate sample workouts for a specific type
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @param {string} type - Workout type
- * @returns {Promise<void>}
- */
-const generateWorkoutsForType = async (db, type) => {
-  try {
-    // Generate 8 weeks worth of workouts
-    const today = new Date();
-    
-    // Define exercises for each workout type
-    const exercisesByType = {
-      "Push": [
-        { name: "Bench Press", sets: 4, minWeight: 100, maxWeight: 180, minReps: 6, maxReps: 12 },
-        { name: "Shoulder Press", sets: 3, minWeight: 60, maxWeight: 120, minReps: 8, maxReps: 12 },
-        { name: "Tricep Extension", sets: 3, minWeight: 40, maxWeight: 70, minReps: 10, maxReps: 15 },
-        { name: "Incline Press", sets: 3, minWeight: 80, maxWeight: 150, minReps: 8, maxReps: 12 }
-      ],
-      "Pull": [
-        { name: "Deadlift", sets: 4, minWeight: 150, maxWeight: 250, minReps: 5, maxReps: 10 },
-        { name: "Barbell Row", sets: 3, minWeight: 80, maxWeight: 160, minReps: 8, maxReps: 12 },
-        { name: "Lat Pulldown", sets: 3, minWeight: 60, maxWeight: 120, minReps: 10, maxReps: 15 },
-        { name: "Bicep Curl", sets: 3, minWeight: 30, maxWeight: 60, minReps: 10, maxReps: 15 }
-      ],
-      "Legs": [
-        { name: "Squat", sets: 4, minWeight: 120, maxWeight: 220, minReps: 6, maxReps: 12 },
-        { name: "Leg Press", sets: 3, minWeight: 150, maxWeight: 300, minReps: 8, maxReps: 12 },
-        { name: "Leg Extension", sets: 3, minWeight: 60, maxWeight: 110, minReps: 10, maxReps: 15 },
-        { name: "Calf Raise", sets: 3, minWeight: 80, maxWeight: 160, minReps: 12, maxReps: 20 }
-      ],
-      "Core": [
-        { name: "Ab Crunch", sets: 3, minWeight: 0, maxWeight: 40, minReps: 15, maxReps: 25 },
-        { name: "Plank", sets: 3, minWeight: 0, maxWeight: 0, minReps: 30, maxReps: 60 },
-        { name: "Russian Twist", sets: 3, minWeight: 10, maxWeight: 30, minReps: 15, maxReps: 25 },
-        { name: "Leg Raise", sets: 3, minWeight: 0, maxWeight: 20, minReps: 12, maxReps: 20 }
-      ]
-    };
-    
-    const exercises = exercisesByType[type];
-    
-    // Generate one workout per week for the last 8 weeks
-    for (let week = 0; week < 8; week++) {
-      const workoutDate = new Date(today);
-      workoutDate.setDate(today.getDate() - ((7 * week) + randomInt(0, 6))); // Random day in the week
-      
-      // Create a workout
-      const workoutId = await createWorkout(db, {
-        name: `${type} Workout`,
-        type: type,
-        date: workoutDate.toISOString().split('T')[0],
-        completed: Math.random() > 0.2 // 80% completion rate
-      });
-      
-      // Add exercises to the workout
-      for (const exercise of exercises) {
-        const exerciseId = await addExerciseToWorkout(db, workoutId, exercise.name, exercise.sets);
-        
-        // Generate progressive overload data
-        if (workoutId && exerciseId) {
-          const completedSets = Math.min(exercise.sets, exercise.sets + (Math.random() > 0.7 ? -1 : 0)); // Sometimes do fewer sets
-          
-          for (let set = 1; set <= completedSets; set++) {
-            // Calculate progressive overload
-            const progressFactor = Math.min(1, week / 7); // 0 to 1 based on week
-            const baseWeight = exercise.minWeight;
-            const potentialGain = exercise.maxWeight - exercise.minWeight;
-            
-            // Add some variation but ensure gradual progress
-            const weightVariation = randomInt(-5, 5);
-            let weight = Math.round(baseWeight + (potentialGain * progressFactor) + weightVariation);
-            weight = Math.max(exercise.minWeight, Math.min(exercise.maxWeight, weight));
-            
-            // For bodyweight exercises
-            if (exercise.maxWeight === 0) weight = 0;
-            
-            const reps = randomInt(exercise.minReps, exercise.maxReps);
-            
-            await addExerciseSet(db, exerciseId, set, weight, reps);
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.error(`Error generating workouts for type ${type}:`, error);
-    throw error;
-  }
-};
-
-/**
- * Helper function to execute a database query
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @param {string} query - SQL query
- * @param {Array} params - Query parameters
- * @returns {Promise<Object>} - Query result
- */
-const executeDbQuery = (db, query, params) => {
-  return new Promise((resolve, reject) => {
-    db.transaction(tx => {
-      tx.executeSql(
-        query,
-        params,
-        (_, result) => {
-          resolve(result);
-        },
-        (_, error) => {
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
-};
-
-/**
- * Create a workout record
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @param {Object} workout - Workout data
- * @returns {Promise<number>} - ID of the created workout
- */
-const createWorkout = async (db, workout) => {
-  try {
-    const result = await executeDbQuery(
-      db,
-      'INSERT INTO workouts (name, type, date, completed) VALUES (?, ?, ?, ?)',
-      [workout.name, workout.type, workout.date, workout.completed ? 1 : 0]
-    );
-    return result.insertId;
-  } catch (error) {
-    console.error('Error creating workout:', error);
-    throw error;
-  }
-};
-
-/**
- * Add an exercise to a workout
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @param {number} workoutId - Workout ID
- * @param {string} exerciseName - Exercise name
- * @param {number} sets - Number of planned sets
- * @returns {Promise<number>} - ID of the created exercise
- */
-const addExerciseToWorkout = async (db, workoutId, exerciseName, sets) => {
-  try {
-    // Check if exercise exists
-    const exerciseResult = await executeDbQuery(
-      db,
-      'SELECT id FROM exercises WHERE name = ?',
-      [exerciseName]
-    );
-    
-    let exerciseId;
-    if (exerciseResult.rows.length > 0) {
-      exerciseId = exerciseResult.rows.item(0).id;
-    } else {
-      // Create new exercise
-      const result = await executeDbQuery(
-        db,
-        'INSERT INTO exercises (name) VALUES (?)',
-        [exerciseName]
-      );
-      exerciseId = result.insertId;
-    }
-    
-    // Link exercise to workout
-    await executeDbQuery(
-      db,
-      'INSERT INTO workout_exercises (workout_id, exercise_id, planned_sets) VALUES (?, ?, ?)',
-      [workoutId, exerciseId, sets]
-    );
-    
-    return exerciseId;
-  } catch (error) {
-    console.error('Error adding exercise to workout:', error);
-    throw error;
-  }
-};
-
-/**
- * Add a set to an exercise
- * @param {SQLite.SQLiteDatabase} db - Database connection
- * @param {number} exerciseId - Exercise ID
- * @param {number} setNumber - Set number
- * @param {number} weight - Weight used
- * @param {number} reps - Repetitions performed
- * @returns {Promise<number>} - ID of the created set
- */
-const addExerciseSet = async (db, exerciseId, setNumber, weight, reps) => {
-  try {
-    const result = await executeDbQuery(
-      db,
-      'INSERT INTO exercise_sets (exercise_id, set_number, weight, reps) VALUES (?, ?, ?, ?)',
-      [exerciseId, setNumber, weight, reps]
-    );
-    return result.insertId;
-  } catch (error) {
-    console.error('Error adding exercise set:', error);
-    throw error;
-  }
-};
-
-/**
- * Generate a random integer between min and max (inclusive)
- * @param {number} min - Minimum value
- * @param {number} max - Maximum value
- * @returns {number} - Random integer
- */
-const randomInt = (min, max) => {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }; 

@@ -4,28 +4,22 @@ import { db } from './db';
  * Get all exercises from the database
  * @returns {Promise<Array>} Array of exercise objects
  */
-export const getAllExercises = () => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error('Database not initialized'));
-      return;
+export const getAllExercises = async () => {
+  try {
+    const database = await db;
+    if (!database) {
+      throw new Error('Database not initialized');
     }
 
-    db.transaction(tx => {
-      tx.executeSql(
-        'SELECT * FROM exercises ORDER BY name',
-        [],
-        (_, { rows }) => {
-          resolve(rows._array);
-        },
-        (_, error) => {
-          console.error('Error fetching exercises:', error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+    const rows = await database.getAllAsync(
+      'SELECT * FROM exercises ORDER BY name',
+      []
+    );
+    return rows;
+  } catch (error) {
+    console.error('Error fetching exercises:', error);
+    throw error;
+  }
 };
 
 /**
@@ -33,60 +27,41 @@ export const getAllExercises = () => {
  * @param {number} workoutId - Workout ID
  * @returns {Promise<Array>} Array of exercise objects with sets
  */
-export const getExercisesByWorkoutId = (workoutId) => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error('Database not initialized'));
-      return;
+export const getExercisesByWorkoutId = async (workoutId) => {
+  try {
+    const database = await db;
+    if (!database) {
+      throw new Error('Database not initialized');
     }
 
-    db.transaction(tx => {
-      tx.executeSql(
-        `SELECT e.id, e.name, e.muscle_group, e.equipment, we.sets, we.reps, we.weight
-         FROM exercises e
-         JOIN workout_exercises we ON e.id = we.exercise_id
-         WHERE we.workout_id = ?
-         ORDER BY we.display_order`,
-        [workoutId],
-        (_, { rows }) => {
-          const exercises = rows._array;
-          // Get sets for each exercise
-          const promises = exercises.map(exercise => {
-            return new Promise((resolve, reject) => {
-              tx.executeSql(
-                `SELECT * FROM exercise_sets 
-                 WHERE exercise_id = ? AND workout_id = ? 
-                 ORDER BY set_number`,
-                [exercise.id, workoutId],
-                (_, { rows }) => {
-                  exercise.sets = rows._array;
-                  resolve(exercise);
-                },
-                (_, error) => {
-                  console.error(`Error fetching sets for exercise ${exercise.id}:`, error);
-                  reject(error);
-                  return false;
-                }
-              );
-            });
-          });
+    const exercises = await database.getAllAsync(
+      `SELECT e.id, e.name, e.muscle_group, e.equipment, we.sets, we.reps, we.weight
+       FROM exercises e
+       JOIN workout_exercises we ON e.id = we.exercise_id
+       WHERE we.workout_id = ?
+       ORDER BY we.display_order`,
+      [workoutId]
+    );
 
-          Promise.all(promises)
-            .then(exercisesWithSets => {
-              resolve(exercisesWithSets);
-            })
-            .catch(error => {
-              reject(error);
-            });
-        },
-        (_, error) => {
-          console.error(`Error fetching exercises for workout ${workoutId}:`, error);
-          reject(error);
-          return false;
-        }
+    // Get sets for each exercise
+    const exercisesWithSets = [];
+    for (const exercise of exercises) {
+      const sets = await database.getAllAsync(
+        `SELECT * FROM exercise_sets 
+         WHERE exercise_id = ? AND workout_id = ? 
+         ORDER BY set_number`,
+        [exercise.id, workoutId]
       );
-    });
-  });
+      
+      exercise.sets = sets;
+      exercisesWithSets.push(exercise);
+    }
+
+    return exercisesWithSets;
+  } catch (error) {
+    console.error(`Error fetching exercises for workout ${workoutId}:`, error);
+    throw error;
+  }
 };
 
 /**
@@ -95,35 +70,29 @@ export const getExercisesByWorkoutId = (workoutId) => {
  * @param {number} limit - Maximum number of exercises to return
  * @returns {Promise<Array>} Array of top exercises with count
  */
-export const getTopExercisesByWorkoutType = (workoutType, limit = 5) => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error('Database not initialized'));
-      return;
+export const getTopExercisesByWorkoutType = async (workoutType, limit = 5) => {
+  try {
+    const database = await db;
+    if (!database) {
+      throw new Error('Database not initialized');
     }
 
-    db.transaction(tx => {
-      tx.executeSql(
-        `SELECT e.id, e.name, COUNT(we.exercise_id) as frequency
-         FROM exercises e
-         JOIN workout_exercises we ON e.id = we.exercise_id
-         JOIN workouts w ON we.workout_id = w.id
-         WHERE w.type = ? AND w.completed = 1
-         GROUP BY e.id
-         ORDER BY frequency DESC
-         LIMIT ?`,
-        [workoutType, limit],
-        (_, { rows }) => {
-          resolve(rows._array);
-        },
-        (_, error) => {
-          console.error(`Error fetching top exercises for workout type ${workoutType}:`, error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+    const rows = await database.getAllAsync(
+      `SELECT e.id, e.name, COUNT(we.exercise_id) as frequency
+       FROM exercises e
+       JOIN workout_exercises we ON e.id = we.exercise_id
+       JOIN workouts w ON we.workout_id = w.id
+       WHERE w.type = ? AND w.completed = 1
+       GROUP BY e.id
+       ORDER BY frequency DESC
+       LIMIT ?`,
+      [workoutType, limit]
+    );
+    return rows;
+  } catch (error) {
+    console.error(`Error fetching top exercises for workout type ${workoutType}:`, error);
+    throw error;
+  }
 };
 
 /**
@@ -135,11 +104,11 @@ export const getTopExercisesByWorkoutType = (workoutType, limit = 5) => {
  * @param {string} options.metric - Metric to track ('weight', 'reps', or 'volume')
  * @returns {Promise<Array>} Array of exercise progress data points
  */
-export const getExerciseProgress = (exerciseId, options = {}) => {
-  return new Promise((resolve, reject) => {
-    if (!db) {
-      reject(new Error('Database not initialized'));
-      return;
+export const getExerciseProgress = async (exerciseId, options = {}) => {
+  try {
+    const database = await db;
+    if (!database) {
+      throw new Error('Database not initialized');
     }
 
     const metric = options.metric || 'weight';
@@ -152,8 +121,7 @@ export const getExerciseProgress = (exerciseId, options = {}) => {
     } else if (metric === 'volume') {
       selectClause = 'SUM(es.weight * es.reps) as value';
     } else {
-      reject(new Error('Invalid metric specified'));
-      return;
+      throw new Error('Invalid metric specified');
     }
 
     let query = `
@@ -177,21 +145,12 @@ export const getExerciseProgress = (exerciseId, options = {}) => {
 
     query += ' GROUP BY w.date ORDER BY w.date';
 
-    db.transaction(tx => {
-      tx.executeSql(
-        query,
-        params,
-        (_, { rows }) => {
-          resolve(rows._array);
-        },
-        (_, error) => {
-          console.error(`Error fetching progress for exercise ${exerciseId}:`, error);
-          reject(error);
-          return false;
-        }
-      );
-    });
-  });
+    const rows = await database.getAllAsync(query, params);
+    return rows;
+  } catch (error) {
+    console.error(`Error fetching progress for exercise ${exerciseId}:`, error);
+    throw error;
+  }
 };
 
 /**

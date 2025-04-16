@@ -53,10 +53,13 @@ const Analytics = () => {
       const types = await fetchWorkoutTypes();
       setWorkoutTypes(types);
       
-      if (types.length > 0) {
+      if (types && types.length > 0) {
         setWorkoutType(types[0].value);
+        setHasData(true);
       } else {
+        console.log('No workout types found');
         setHasData(false);
+        setError(null); // Clear any errors, this is a valid case
       }
     } catch (err) {
       console.error('Error loading workout types:', err);
