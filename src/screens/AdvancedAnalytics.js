@@ -93,34 +93,37 @@ const AdvancedAnalytics = ({ navigation, route }) => {
   const loadUserData = async () => {
     try {
       const database = await db;
-      const userInfoResult = await database.getAllAsync('SELECT * FROM user_info LIMIT 1');
+      const userInfoResult = await database.getAllAsync('SELECT goal_weight, selected_metric FROM user_info LIMIT 1');
       
+      let goalWeight = 0;
       if (userInfoResult && userInfoResult.length > 0) {
-        setUserData(userInfoResult[0]);
-        
-        // Load body weight data
-        const weightHistoryResult = await database.getAllAsync(
-          'SELECT weight FROM weight_history ORDER BY created_at DESC LIMIT 1'
-        );
-        
-        if (weightHistoryResult && weightHistoryResult.length > 0) {
-          setBodyWeight(prev => ({
-            ...prev,
-            current: weightHistoryResult[0].weight || prev.current
-          }));
-        }
-        
-        // Use user_info for starting and goal weight
-        if (userInfoResult[0].weight) {
-          setBodyWeight(prev => ({
-            ...prev,
-            starting: userInfoResult[0].weight,
-            goal: userInfoResult[0].goal_weight || Math.round(userInfoResult[0].weight * 0.9)
-          }));
-        }
+        goalWeight = userInfoResult[0].goal_weight || 0;
+        setUserData(userInfoResult[0]); // Keep user data for other potential uses
       }
+        
+      // Load starting weight (first recorded weight)
+      const startingWeightResult = await database.getAllAsync(
+        'SELECT weight FROM weight_history ORDER BY created_at ASC LIMIT 1'
+      );
+      const startingWeight = (startingWeightResult && startingWeightResult.length > 0) ? startingWeightResult[0].weight : 0;
+
+      // Load current weight (last recorded weight)
+      const currentWeightResult = await database.getAllAsync(
+        'SELECT weight FROM weight_history ORDER BY created_at DESC LIMIT 1'
+      );
+      const currentWeight = (currentWeightResult && currentWeightResult.length > 0) ? currentWeightResult[0].weight : startingWeight; // Fallback to starting weight if no current
+        
+      setBodyWeight({
+        starting: startingWeight,
+        current: currentWeight,
+        goal: goalWeight
+      });
+
     } catch (error) {
-      console.error('Error loading user data:', error);
+      console.error('Error loading user and weight data:', error);
+      // Set defaults in case of error
+      setBodyWeight({ starting: 0, current: 0, goal: 0 });
+      setUserData(null);
     }
   };
 

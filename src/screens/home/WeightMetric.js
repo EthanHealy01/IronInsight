@@ -199,7 +199,7 @@ const WeightMetric = () => {
         >
             <View style={globalStyles.flexRowBetween}>
                 <Text style={[globalStyles.fontWeightBold, globalStyles.fontSizeMedium, { color: "#fff", zIndex: 2 }]}>
-                  Weight Tracker
+                  Weight tracker
                 </Text>
                 <Menu
                     visible={visible}
