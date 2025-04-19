@@ -5,19 +5,16 @@ import {
   StyleSheet, 
   ScrollView, 
   TouchableOpacity, 
-  Image,
   ActivityIndicator,
   Modal,
-  FlatList
+  FlatList,
+  useColorScheme
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { 
   faArrowUp, 
   faArrowRight, 
   faRotate, 
-  faChartLine, 
-  faWeightScale,
   faArrowDown,
   faChevronDown,
   faTimes
@@ -25,29 +22,35 @@ import {
 import { LineChart } from 'react-native-chart-kit';
 import { db } from '../database/db';
 import { styles as globalStylesFunc } from '../theme/styles';
-import { COLORS } from '../constants/theme';
 import Svg, { Circle } from 'react-native-svg';
 
 const AdvancedAnalytics = ({ navigation, route }) => {
+  const isDarkMode = useColorScheme() === 'dark';
   const globalStyles = globalStylesFunc();
   const [loading, setLoading] = useState(true);
   const [userData, setUserData] = useState(null);
-  const [gymVisits, setGymVisits] = useState({ lastMonth: 12, thisMonth: 16 });
-  const [completionRate, setCompletionRate] = useState(98);
-  const [bodyWeight, setBodyWeight] = useState({
-    starting: 94,
-    current: 89.95,
-    goal: 85
+  const [gymVisits, setGymVisits] = useState({ 
+    lastMonth: 0, 
+    thisMonth: 0,
+    percentChange: 0 
   });
-  const [selectedExercise, setSelectedExercise] = useState('All Exercises');
+  const [completionRate, setCompletionRate] = useState(0);
+  const [bodyWeight, setBodyWeight] = useState({
+    starting: 0,
+    current: 0,
+    goal: 0
+  });
+  const [selectedExercise, setSelectedExercise] = useState('No Exercise Selected');
   const [availableExercises, setAvailableExercises] = useState([]);
   const [exerciseStats, setExerciseStats] = useState({
     data: [],
     avgLoad: 0,
-    loadGrowth: 0
+    loadGrowth: 0,
+    hasData: false
   });
   const [modalVisible, setModalVisible] = useState(false);
   const [exerciseHistoryMap, setExerciseHistoryMap] = useState({});
+  const [hasSelectedExercise, setHasSelectedExercise] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -57,6 +60,22 @@ const AdvancedAnalytics = ({ navigation, route }) => {
 
   useEffect(() => {
     if (selectedExercise) {
+      // Reset chart state when exercise changes to prevent race condition
+      setExerciseStats({
+        setWeights: {
+          set1: [],
+          set2: [],
+          set3: [],
+          set4: [],
+          set5: []
+        },
+        volumeData: [],
+        avgLoad: 0,
+        loadGrowth: 0,
+        hasData: false
+      });
+      setLoading(true);
+      
       loadExerciseStats(selectedExercise);
     }
   }, [selectedExercise]);
@@ -123,43 +142,96 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         [lastMonthStart, lastMonthEnd]
       );
       
+      // Extract counts with fallbacks to 0 if no data
       const thisMonthCount = thisMonthResult && thisMonthResult.length > 0 ? thisMonthResult[0].count : 0;
       const lastMonthCount = lastMonthResult && lastMonthResult.length > 0 ? lastMonthResult[0].count : 0;
       
       // Calculate percentage change
-      const percentChange = lastMonthCount > 0 
-        ? Math.round(((thisMonthCount - lastMonthCount) / lastMonthCount) * 100 * 100) / 100
-        : 0;
+      let percentChange = 0;
+      if (lastMonthCount > 0) {
+        percentChange = Math.round(((thisMonthCount - lastMonthCount) / lastMonthCount) * 100 * 100) / 100;
+      } else if (thisMonthCount > 0) {
+        percentChange = 100; // If last month was 0 but this month has visits, that's a 100% increase
+      }
         
       setGymVisits({
-        lastMonth: lastMonthCount || 12,
-        thisMonth: thisMonthCount || 16,
-        percentChange: percentChange || 33.33
+        lastMonth: lastMonthCount,
+        thisMonth: thisMonthCount,
+        percentChange: percentChange
       });
       
       // Calculate completion rate (exercises completed vs planned)
+      await calculateCompletionRate(database);
+      
+    } catch (error) {
+      console.error('Error loading gym visits:', error);
+      // Set fallback data in case of error
+      setGymVisits({
+        lastMonth: 0,
+        thisMonth: 0,
+        percentChange: 0
+      });
+    }
+  };
+
+  const calculateCompletionRate = async (database) => {
+    try {
+      // Get total planned exercises (session_exercises)
       const totalExercisesResult = await database.getAllAsync(
         'SELECT COUNT(id) as count FROM session_exercises'
       );
       
+      // Get total completed sets
       const totalSetsResult = await database.getAllAsync(
         'SELECT COUNT(id) as count FROM session_sets'
       );
       
       if (totalExercisesResult && totalExercisesResult.length > 0 && 
           totalSetsResult && totalSetsResult.length > 0) {
-        const totalExercises = totalExercisesResult[0].count;
-        const totalSets = totalSetsResult[0].count;
         
-        // Assuming average 3 sets per exercise as "planned"
-        const plannedSets = totalExercises * 3;
-        const completionRate = Math.min(98, Math.round((totalSets / plannedSets) * 100));
+        const totalExercises = totalExercisesResult[0].count || 0;
+        const totalSets = totalSetsResult[0].count || 0;
         
-        setCompletionRate(completionRate || 98);
+        // Simplify the planned sets calculation to avoid schema issues
+        // Count how many exercises we have in each session
+        const exercisesPerSessionResult = await database.getAllAsync(
+          'SELECT workout_session_id, COUNT(id) as exercise_count FROM session_exercises GROUP BY workout_session_id'
+        );
+        
+        let plannedSets = 0;
+        
+        if (exercisesPerSessionResult && exercisesPerSessionResult.length > 0) {
+          // Use a standard assumption of 3 sets per exercise
+          // This is simpler and avoids schema compatibility issues
+          const defaultSetCount = 3;
+          
+          exercisesPerSessionResult.forEach(session => {
+            plannedSets += (session.exercise_count || 1) * defaultSetCount;
+          });
+        } else {
+          // Fallback: if no data, use total exercises * 3
+          plannedSets = totalExercises * 3;
+        }
+        
+        // Ensure we have at least some planned sets
+        plannedSets = Math.max(plannedSets, 1);
+        
+        // Calculate completion rate and cap at 100%
+        const completionRate = Math.min(100, Math.round((totalSets / plannedSets) * 100));
+        
+        setCompletionRate(completionRate);
+      } else {
+        // If no data, set a default value
+        setCompletionRate(0);
       }
     } catch (error) {
-      console.error('Error loading gym visits:', error);
+      console.error('Error calculating completion rate:', error);
+      setCompletionRate(0);
     }
+  };
+  
+  const calculateVisitChange = () => {
+    return gymVisits.percentChange;
   };
 
   const loadAvailableExercises = async () => {
@@ -173,18 +245,42 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       
       if (exercisesResult && exercisesResult.length > 0) {
         const exerciseNames = exercisesResult.map(ex => ex.exercise_name);
-        // Add "All Exercises" option at the top
-        const exercises = ['All Exercises', ...exerciseNames];
-        setAvailableExercises(exercises);
+        
+        // Only add "No Exercise Selected" option if user hasn't made a selection yet
+        if (!hasSelectedExercise) {
+          const exercises = ["No Exercise Selected", ...exerciseNames];
+          setAvailableExercises(exercises);
+          setSelectedExercise("No Exercise Selected");
+        } else {
+          // After initial selection, don't include the placeholder option
+          setAvailableExercises(exerciseNames);
+          // If the currently selected exercise is not in the updated list, select the first one
+          if (!exerciseNames.includes(selectedExercise)) {
+            setSelectedExercise(exerciseNames[0]);
+          }
+        }
       } else {
-        setAvailableExercises(['All Exercises']);
+        // If no exercises found, just set the placeholder option if no selection has been made
+        if (!hasSelectedExercise) {
+          setAvailableExercises(["No Exercise Selected"]);
+          setSelectedExercise("No Exercise Selected");
+        } else {
+          // No exercises found but user has made a selection previously
+          setAvailableExercises([]);
+        }
       }
 
       // Load exercise history for all exercises (to avoid repeated database calls)
       await loadAllExercisesHistory();
     } catch (error) {
       console.error('Error loading available exercises:', error);
-      setAvailableExercises(['All Exercises']);
+      // In case of error
+      if (!hasSelectedExercise) {
+        setAvailableExercises(["No Exercise Selected"]);
+        setSelectedExercise("No Exercise Selected");
+      } else {
+        setAvailableExercises([]);
+      }
     }
   };
 
@@ -218,7 +314,8 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         if (sets.length > 0) {
           let totalVolume = 0;
           let totalWeight = 0;
-          let setCount = 0;
+          let setCount = sets.length; // Use actual number of sets
+          let setWeights = []; // Track individual set weights
           
           // Process each set
           for (const set of sets) {
@@ -238,7 +335,9 @@ const AdvancedAnalytics = ({ navigation, route }) => {
             if (!isNaN(weight) && !isNaN(reps) && weight > 0 && reps > 0) {
               totalVolume += weight * reps;
               totalWeight += weight;
-              setCount++;
+              setWeights.push(weight); // Store the actual weight for this set
+            } else {
+              setCount--; // Reduce set count if weight or reps are invalid
             }
           }
           
@@ -248,7 +347,8 @@ const AdvancedAnalytics = ({ navigation, route }) => {
               date: sessionDate,
               totalVolume,
               avgWeight: totalWeight / setCount,
-              setCount
+              setCount,
+              setWeights: setWeights.length > 0 ? setWeights : null // Store actual set weights if available
             });
           }
         }
@@ -270,13 +370,13 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       setLoading(true);
       
       if (!exerciseName) {
-        exerciseName = 'All Exercises';
+        exerciseName = 'No Exercise Selected';
       }
       
       // Get data from cached exercise history
       let exerciseData = [];
       
-      if (exerciseName === 'All Exercises') {
+      if (exerciseName === 'No Exercise Selected') {
         // Combine all exercises into one dataset
         // Group data by week to show average progression
         const combinedData = [];
@@ -292,17 +392,15 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         // Sort and filter to unique dates
         const uniqueDates = [...new Set(allDates)].sort();
         
-        // If we have no data, return early
+        // If we have no data, return early with empty data
         if (uniqueDates.length === 0) {
           setExerciseStats({
-            setWeights: {
-              set1: [],
-              set2: [],
-              set3: []
-            },
+            setWeights: {},
             volumeData: [],
             avgLoad: 0,
-            loadGrowth: 0
+            loadGrowth: 0,
+            hasData: false,
+            maxSets: 0
           });
           setLoading(false);
           return;
@@ -376,14 +474,12 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       // We need at least 2 data points for a meaningful chart
       if (exerciseData.length < 2) {
         setExerciseStats({
-          setWeights: {
-            set1: [],
-            set2: [],
-            set3: []
-          },
+          setWeights: {},
           volumeData: [],
           avgLoad: 0,
-          loadGrowth: 0
+          loadGrowth: 0,
+          hasData: false,
+          maxSets: 0
         });
         setLoading(false);
         return;
@@ -392,26 +488,65 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       // Extract volume data
       const volumeData = exerciseData.map(item => item.totalVolume);
       
-      // For set weights, we'll use weight data or simulate multiple sets by adding variations
-      const set1Data = [];
-      const set2Data = [];
-      const set3Data = [];
+      // For set weights, dynamically create data arrays for each set
+      const setWeights = {};
+      let maxSets = 0;
       
+      // First pass: determine the maximum number of sets we have across all workouts
       exerciseData.forEach(item => {
-        // Use average weight plus some variation to simulate different sets
-        const baseWeight = item.avgWeight || 0;
-        
-        // Only add if we have actual weight data
-        if (baseWeight > 0) {
-          set1Data.push(baseWeight * 1.05); // First set is usually heaviest
-          set2Data.push(baseWeight);        // Second set matches average
-          set3Data.push(baseWeight * 0.95); // Third set is usually lighter
+        if (item.setWeights && item.setWeights.length > 0) {
+          maxSets = Math.max(maxSets, item.setWeights.length);
+        } else if (item.setCount) {
+          maxSets = Math.max(maxSets, item.setCount);
+        }
+      });
+      
+      // Initialize arrays for each set
+      for (let i = 1; i <= maxSets; i++) {
+        setWeights[`set${i}`] = [];
+      }
+      
+      // Second pass: fill in the data for each set
+      exerciseData.forEach(item => {
+        // Check if we have actual set weights
+        if (item.setWeights && item.setWeights.length > 0) {
+          // Use actual set weights if available
+          for (let i = 1; i <= maxSets; i++) {
+            setWeights[`set${i}`].push(i <= item.setWeights.length ? item.setWeights[i-1] : null);
+          }
         } else {
-          // If no weight data, use volume data scaled down as a fallback
-          const scaledVolume = item.totalVolume / 100;
-          set1Data.push(scaledVolume * 1.05);
-          set2Data.push(scaledVolume);
-          set3Data.push(scaledVolume * 0.95);
+          // Use average weight with slight variation to simulate different sets
+          const baseWeight = item.avgWeight || 0;
+          
+          // Only add if we have actual weight data
+          if (baseWeight > 0) {
+            const workoutSets = Math.min(item.setCount || 3, maxSets);
+            
+            for (let i = 1; i <= maxSets; i++) {
+              if (i <= workoutSets) {
+                // Create variation based on set number
+                let setFactor = 1;
+                if (i === 1) setFactor = 1.05; // First set typically heavier
+                else if (i > 3) setFactor = 1 - (0.03 * (i - 3)); // Later sets get progressively lighter
+                
+                setWeights[`set${i}`].push(baseWeight * setFactor);
+              } else {
+                setWeights[`set${i}`].push(null);
+              }
+            }
+          } else {
+            // If no weight data, use volume data scaled down as a fallback
+            const scaledVolume = item.totalVolume / 100;
+            
+            for (let i = 1; i <= maxSets; i++) {
+              if (i <= 3) { // Only add data for the first 3 sets in fallback mode
+                const setFactor = i === 1 ? 1.05 : i === 2 ? 1 : 0.95;
+                setWeights[`set${i}`].push(scaledVolume * setFactor);
+              } else {
+                setWeights[`set${i}`].push(null);
+              }
+            }
+          }
         }
       });
       
@@ -423,19 +558,25 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         : 0;
       
       setExerciseStats({
-        setWeights: {
-          set1: set1Data,
-          set2: set2Data,
-          set3: set3Data
-        },
+        setWeights: setWeights,
         volumeData: volumeData,
         avgLoad: Math.round(lastVolume * 100) / 100,
-        loadGrowth: Math.round(growthPercentage * 100) / 100
+        loadGrowth: Math.round(growthPercentage * 100) / 100,
+        hasData: true,
+        maxSets: maxSets
       });
       
       setLoading(false);
     } catch (error) {
       console.error('Error loading exercise stats:', error);
+      setExerciseStats({
+        setWeights: {},
+        volumeData: [],
+        avgLoad: 0,
+        loadGrowth: 0,
+        hasData: false,
+        maxSets: 0
+      });
       setLoading(false);
     }
   };
@@ -455,148 +596,182 @@ const AdvancedAnalytics = ({ navigation, route }) => {
     return new Date(d.setDate(diff));
   };
 
-  const calculateVisitChange = () => {
-    const change = ((gymVisits.thisMonth - gymVisits.lastMonth) / gymVisits.lastMonth) * 100;
-    return Math.round(change * 100) / 100;
-  };
-
   const calculateWeightChange = () => {
     const change = ((bodyWeight.current - bodyWeight.starting) / bodyWeight.starting) * 100;
     return Math.round(change * 100) / 100;
   };
 
-  const renderExerciseModal = () => {
-    return (
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Exercise</Text>
-              <TouchableOpacity 
-                style={styles.closeButton} 
-                onPress={() => setModalVisible(false)}
-              >
-                <FontAwesomeIcon icon={faTimes} size={20} color="#333" />
-              </TouchableOpacity>
-            </View>
-            
-            <FlatList
-              data={availableExercises}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.exerciseItem,
-                    selectedExercise === item && styles.selectedExerciseItem
-                  ]}
-                  onPress={() => {
-                    setSelectedExercise(item);
-                    setModalVisible(false);
-                  }}
-                >
-                  <Text 
-                    style={[
-                      styles.exerciseItemText,
-                      selectedExercise === item && styles.selectedExerciseText
-                    ]}
-                  >
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </View>
-      </Modal>
-    );
+  // Handle exercise selection
+  const handleExerciseSelection = (exercise) => {
+    setSelectedExercise(exercise);
+    setModalVisible(false);
+    
+    // If this is the first time selecting an exercise, update the state
+    if (!hasSelectedExercise && exercise !== 'No Exercise Selected') {
+      setHasSelectedExercise(true);
+      // Reload exercise list without the placeholder
+      loadAvailableExercises();
+    }
   };
 
   const renderProgressionChart = () => {
-    if (!exerciseStats.setWeights || !exerciseStats.setWeights.set1) {
+    if (loading) {
       return (
-        <View style={styles.emptyChartContainer}>
-          <Text style={styles.emptyChartText}>No data available</Text>
+        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
+          <ActivityIndicator color="#007bff" size="large" />
         </View>
       );
     }
 
-    const { setWeights } = exerciseStats;
+    if (selectedExercise === 'No Exercise Selected') {
+      return (
+        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
+          <Text style={[styles.emptyChartText, globalStyles.textColor]}>Select an exercise from below</Text>
+          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>to view your progression data</Text>
+          
+          <TouchableOpacity 
+            style={[styles.initialSelectionButton, globalStyles.cardBackgroundColor]}
+            onPress={() => setModalVisible(true)}
+          >
+            <Text style={styles.initialSelectionButtonText}>Select Exercise</Text>
+            <FontAwesomeIcon icon={faChevronDown} size={14} color="#007bff" />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (!exerciseStats.hasData || !exerciseStats.setWeights || Object.keys(exerciseStats.setWeights).length === 0 || exerciseStats.maxSets === 0) {
+      return (
+        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
+          <Text style={[styles.emptyChartText, globalStyles.textColor]}>No workout data available</Text>
+          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>Complete workouts to see progress</Text>
+        </View>
+      );
+    }
+
+    const { setWeights, maxSets } = exerciseStats;
     
     // Take only the last 7 data points or fewer if we don't have enough
     const dataLength = setWeights.set1.length;
     const startIdx = Math.max(0, dataLength - 7);
     const endIdx = dataLength;
-    const slicedData1 = setWeights.set1.slice(startIdx, endIdx);
-    const slicedData2 = setWeights.set2.slice(startIdx, endIdx);
-    const slicedData3 = setWeights.set3.slice(startIdx, endIdx);
+    
+    // Create sliced data for each set dynamically
+    const slicedData = {};
+    for (let i = 1; i <= maxSets; i++) {
+      const setKey = `set${i}`;
+      if (setWeights[setKey]) {
+        slicedData[setKey] = setWeights[setKey].slice(startIdx, endIdx);
+      }
+    }
     
     // Create labels for the chart based on workout numbers
-    const labels = Array.from({length: slicedData1.length}, (_, i) => 
+    const labels = Array.from({length: slicedData.set1.length}, (_, i) => 
       `W${i+1}`
     );
     
     // Prepare data for line chart
     const chartData = {
       labels: labels.length > 0 ? labels : ['No data'],
-      datasets: [
-        {
-          data: slicedData1.length > 0 ? slicedData1 : [0],
-          color: () => '#007bff', // Blue
-          strokeWidth: 2
-        },
-        {
-          data: slicedData2.length > 0 ? slicedData2 : [0],
-          color: () => '#ff9500', // Orange
-          strokeWidth: 2
-        },
-        {
-          data: slicedData3.length > 0 ? slicedData3 : [0],
-          color: () => '#4cd964', // Green
-          strokeWidth: 2
-        }
-      ]
+      datasets: []
     };
+    
+    // Define colors for up to 20 sets
+    const setColors = [
+      '#007bff', // Blue
+      '#ff9500', // Orange
+      '#4cd964', // Green
+      '#9932CC', // Purple
+      '#FF3B30', // Red
+      '#5856D6', // Indigo
+      '#FF2D55', // Pink
+      '#FFCC00', // Yellow
+      '#34C759', // Green variation
+      '#5AC8FA', // Light blue
+      '#AF52DE', // Purple variation
+      '#FF9500', // Orange variation
+      '#8A2BE2', // Blue violet
+      '#00BFFF', // Deep sky blue
+      '#FF4500', // Orange red
+      '#32CD32', // Lime green
+      '#FF1493', // Deep pink
+      '#6495ED', // Cornflower blue
+      '#00CED1', // Dark turquoise
+      '#FF8C00'  // Dark orange
+    ];
+    
+    // Get additional colors if needed
+    const getColor = (index) => {
+      if (index < setColors.length) {
+        return setColors[index];
+      } else {
+        // Generate additional colors when we go beyond our predefined colors
+        const hue = (index * 137.5) % 360; // Using golden angle to spread colors evenly
+        return `hsl(${hue}, 70%, 60%)`;
+      }
+    };
+    
+    // Add datasets for each set that has data
+    for (let i = 1; i <= maxSets; i++) {
+      const setKey = `set${i}`;
+      if (slicedData[setKey] && slicedData[setKey].some(val => val !== null)) {
+        chartData.datasets.push({
+          data: slicedData[setKey],
+          color: () => getColor(i-1), 
+          strokeWidth: 2
+        });
+      }
+    }
+
+    // Determine chart background colors based on theme
+    const chartBgColor = isDarkMode ? '#000000' : '#ffffff';
+    const chartGradientFrom = isDarkMode ? '#000000' : '#ffffff';
+    const chartGradientTo = isDarkMode ? '#000000' : '#ffffff';
+    const chartLabelColor = isDarkMode ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)';
 
     return (
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Progressive overload chart</Text>
+      <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
+        <Text style={[styles.chartTitle, globalStyles.textColor]}>Progressive overload chart</Text>
         <View style={styles.legendContainer}>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendColor, { backgroundColor: '#007bff' }]} />
-            <Text style={styles.legendText}>set 1 weight</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendColor, { backgroundColor: '#ff9500' }]} />
-            <Text style={styles.legendText}>set 2 weight</Text>
-          </View>
-          <View style={styles.legendRow}>
-            <View style={[styles.legendColor, { backgroundColor: '#4cd964' }]} />
-            <Text style={styles.legendText}>set 3 weight</Text>
-          </View>
+          {/* Generate legend rows dynamically */}
+          {Array.from({length: maxSets}, (_, i) => i + 1).map(setNum => {
+            const setKey = `set${setNum}`;
+            if (slicedData[setKey] && slicedData[setKey].some(val => val !== null)) {
+              return (
+                <View key={setKey} style={styles.legendRow}>
+                  <View style={[styles.legendColor, { backgroundColor: getColor(setNum-1) }]} />
+                  <Text style={[styles.legendText, globalStyles.grayText]}>set {setNum} weight</Text>
+                </View>
+              );
+            }
+            return null;
+          })}
         </View>
         <LineChart
           data={chartData}
           width={320}
           height={220}
+          withShadow={false}
           chartConfig={{
-            backgroundColor: '#ffffff',
-            backgroundGradientFrom: '#ffffff',
-            backgroundGradientTo: '#ffffff',
+            backgroundColor: chartBgColor,
+            backgroundGradientFrom: chartGradientFrom,
+            backgroundGradientTo: chartGradientTo,
             decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            color: (opacity = 1) => `rgba(${isDarkMode ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+            labelColor: (opacity = 1) => chartLabelColor,
             propsForDots: {
-              r: '6',
+              r: '3',
               strokeWidth: '2',
             },
             propsForLabels: {
               fontSize: 10
-            }
+            },
+            fillShadowGradientOpacity: 0,
+            formatYLabel: formatYLabel,
+            paddingLeft: 30,
+            paddingRight: 30,
+            paddingTop: 20,
+            paddingBottom: 10,
           }}
           bezier
           style={styles.lineChart}
@@ -606,10 +781,24 @@ const AdvancedAnalytics = ({ navigation, route }) => {
   };
 
   const renderVolumeChart = () => {
-    if (!exerciseStats.volumeData || exerciseStats.volumeData.length < 2) {
+    if (loading) {
       return (
-        <View style={styles.emptyChartContainer}>
-          <Text style={styles.emptyChartText}>Not enough data to show volume progression</Text>
+        <View style={[styles.emptyChartContainer, globalStyles.cardBackgroundColor]}>
+          <ActivityIndicator color="#007bff" size="large" />
+        </View>
+      );
+    }
+
+    if (selectedExercise === 'No Exercise Selected') {
+      // Don't show a duplicate message
+      return null;
+    }
+
+    if (!exerciseStats.hasData || !exerciseStats.volumeData || exerciseStats.volumeData.length < 2) {
+      return (
+        <View style={[styles.emptyChartContainer, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.emptyChartText, globalStyles.textColor]}>No volume data available</Text>
+          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>Track more workouts to see progress</Text>
         </View>
       );
     }
@@ -658,12 +847,23 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       </View>
     );
 
+    // Format the average load value - fix kkg issue by ensuring proper formatting
+    const formattedAvgLoad = exerciseStats.avgLoad >= 1000 
+      ? `${(exerciseStats.avgLoad / 1000).toFixed(1)}k`
+      : exerciseStats.avgLoad;
+
+    // Determine chart background colors based on theme
+    const chartBgColor = isDarkMode ? '#000000' : '#ffffff';
+    const chartGradientFrom = isDarkMode ? '#000000' : '#ffffff';
+    const chartGradientTo = isDarkMode ? '#000000' : '#ffffff';
+    const chartLabelColor = isDarkMode ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)';
+
     return (
-      <View style={styles.chartContainer}>
+      <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
         <View style={styles.statHeader}>
-          <Text style={styles.chartTitle}>Avg load per workout over time</Text>
+          <Text style={[styles.chartTitle, globalStyles.textColor]}>Avg load per workout over time</Text>
           <View style={styles.statValue}>
-            <Text style={styles.loadValue}>{exerciseStats.avgLoad}kg</Text>
+            <Text style={[styles.loadValue, globalStyles.textColor]}>{formattedAvgLoad}kg</Text>
             {growthIndicator}
           </View>
         </View>
@@ -671,30 +871,36 @@ const AdvancedAnalytics = ({ navigation, route }) => {
           data={volumeChartData}
           width={320}
           height={220}
+          withShadow={false}
           chartConfig={{
-            backgroundColor: '#ffffff',
-            backgroundGradientFrom: '#ffffff',
-            backgroundGradientTo: '#ffffff',
+            backgroundColor: chartBgColor,
+            backgroundGradientFrom: chartGradientFrom,
+            backgroundGradientTo: chartGradientTo,
             decimalPlaces: 1,
-            color: (opacity = 1) => `rgba(255, 148, 77, ${opacity})`,
-            labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+            color: (opacity = 1) => `rgba(${isDarkMode ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
+            labelColor: (opacity = 1) => chartLabelColor,
             style: {
               borderRadius: 16,
             },
             propsForDots: {
-              r: '6',
+              r: '3',
               strokeWidth: '2',
               stroke: 'rgba(255, 148, 77, 0.3)',
             },
             fillShadowGradient: 'rgba(255, 148, 77, 0.3)',
-            fillShadowGradientOpacity: 0.6,
+            fillShadowGradientOpacity: 0,
             propsForLabels: {
               fontSize: 10
             },
+            formatYLabel: formatYLabel,
+            paddingLeft: 30,
+            paddingRight: 30,
+            paddingTop: 20,
+            paddingBottom: 10,
           }}
           bezier
           style={styles.lineChart}
-          withInnerLines={false}
+          withInnerLines={true}
           withOuterLines={false}
           withVerticalLines={true}
           withHorizontalLines={true}
@@ -706,22 +912,96 @@ const AdvancedAnalytics = ({ navigation, route }) => {
     );
   };
 
+  const renderExerciseModal = () => {
+    return (
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, globalStyles.cardBackgroundColor]}>
+            <View style={[styles.modalHeader, {
+                  borderBottomColor: globalStyles.container.backgroundColor === '#f5f5f5' ? '#eee' : '#333',
+            }]}>
+              <Text style={[styles.modalTitle, globalStyles.fontWeightBold]}>Select Exercise</Text>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setModalVisible(false)}
+              >
+                <FontAwesomeIcon icon={faTimes} size={20} color={globalStyles.fontWeightRegular.color} />
+              </TouchableOpacity>
+            </View>
+            
+            <FlatList
+              data={availableExercises}
+              keyExtractor={(item, index) => index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.exerciseItem,
+                    selectedExercise === item && [styles.selectedExerciseItem, { backgroundColor: globalStyles.container.backgroundColor === '#f5f5f5' ? '#f0f8ff' : '#1a3366' }],
+                    { borderBottomColor: globalStyles.container.backgroundColor === '#f5f5f5' ? '#eee' : '#333' }
+                  ]}
+                  onPress={() => handleExerciseSelection(item)}
+                >
+                  <Text 
+                    style={[
+                      styles.exerciseItemText,
+                      globalStyles.fontWeightRegular,
+                      selectedExercise === item && styles.selectedExerciseText
+                    ]}
+                  >
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const formatYLabel = (value) => {
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}k`;
+    }
+    return value.toString();
+  };
+
+  // Format number with k suffix for thousands
+  const formatNumber = (value) => {
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(1)}k`;
+    }
+    return value.toString();
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView>
+      <ScrollView style={[globalStyles.container]}>
         <View style={styles.header}>
           <View style={styles.profileSection}>
-            <Text style={styles.title}>General Analytics</Text>
+            <Text style={[styles.title, globalStyles.fontWeightBold]}>General Analytics</Text>
           </View>
-          <TouchableOpacity style={styles.refreshButton}>
-            <Text style={styles.periodText}>Monthly</Text>
-            <FontAwesomeIcon icon={faRotate} size={16} color="#000" />
+          <TouchableOpacity 
+            style={[styles.refreshButton, globalStyles.cardBackgroundColor]}
+            onPress={() => {
+              setLoading(true);
+              loadGymVisits();
+              loadUserData();
+              loadAvailableExercises();
+            }}
+          >
+            <Text style={[styles.periodText, globalStyles.fontWeightRegular]}>Monthly</Text>
+            <FontAwesomeIcon icon={faRotate} size={16} color={globalStyles.fontWeightRegular.color} />
           </TouchableOpacity>
         </View>
 
         {/* Gym Visits Section */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Gym visits</Text>
+        <View style={[styles.card, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.cardTitle, globalStyles.fontWeightSemiBold]}>Gym visits</Text>
           <View style={{ 
             position: 'absolute', 
             top: 15, 
@@ -729,28 +1009,30 @@ const AdvancedAnalytics = ({ navigation, route }) => {
             flexDirection: 'row',
             alignItems: 'center'
           }}>
-            <View style={[
-              styles.percentBadge, 
-              { 
-                borderColor: calculateVisitChange() > 0 ? '#4cd964' : calculateVisitChange() < 0 ? '#FF3B30' : '#757575',
-                borderWidth: 1 
-              }
-            ]}>
-              {calculateVisitChange() > 0 ? (
-                <FontAwesomeIcon icon={faArrowUp} size={12} color="#4cd964" />
-              ) : calculateVisitChange() < 0 ? (
-                <FontAwesomeIcon icon={faArrowDown} size={12} color="#FF3B30" />
-              ) : (
-                <Text style={{ color: "#757575", fontWeight: '500' }}>–</Text>
-              )}
-              <Text style={{ 
-                color: calculateVisitChange() > 0 ? "#4cd964" : calculateVisitChange() < 0 ? "#FF3B30" : "#757575", 
-                fontWeight: '500', 
-                marginLeft: 3 
-              }}>
-                {Math.abs(calculateVisitChange())}%
-              </Text>
-            </View>
+            {gymVisits.lastMonth > 0 || gymVisits.thisMonth > 0 ? (
+              <View style={[
+                styles.percentBadge, 
+                { 
+                  borderColor: calculateVisitChange() > 0 ? '#4cd964' : calculateVisitChange() < 0 ? '#FF3B30' : '#757575',
+                  borderWidth: 1 
+                }
+              ]}>
+                {calculateVisitChange() > 0 ? (
+                  <FontAwesomeIcon icon={faArrowUp} size={12} color="#4cd964" />
+                ) : calculateVisitChange() < 0 ? (
+                  <FontAwesomeIcon icon={faArrowDown} size={12} color="#FF3B30" />
+                ) : (
+                  <Text style={{ color: "#757575", fontWeight: '500' }}>–</Text>
+                )}
+                <Text style={{ 
+                  color: calculateVisitChange() > 0 ? "#4cd964" : calculateVisitChange() < 0 ? "#FF3B30" : "#757575", 
+                  fontWeight: '500', 
+                  marginLeft: 3 
+                }}>
+                  {Math.abs(calculateVisitChange())}%
+                </Text>
+              </View>
+            ) : null}
           </View>
           <View style={styles.gymVisitsContainer}>
             <View style={[styles.visitBox, { backgroundColor: '#FFE4CA', marginRight: 5 }]}>
@@ -767,8 +1049,8 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         </View>
 
         {/* Body Weight Section */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Body weight</Text>
+        <View style={[styles.card, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.cardTitle, globalStyles.fontWeightSemiBold]}>Body weight</Text>
           <View style={{ position: 'absolute', top: 15, right: 15 }}>
             <View style={[
               styles.percentBadge, 
@@ -795,20 +1077,20 @@ const AdvancedAnalytics = ({ navigation, route }) => {
           </View>
           <View style={styles.weightContainer}>
             <View style={styles.weightColumn}>
-              <Text style={styles.weightLabel}>Starting</Text>
-              <Text style={styles.weightValue}>{bodyWeight.starting}kg</Text>
+              <Text style={[styles.weightLabel, globalStyles.grayText]}>Starting</Text>
+              <Text style={[styles.weightValue, globalStyles.fontWeightBold]}>{bodyWeight.starting}kg</Text>
             </View>
             <View style={styles.weightColumn}>
               <Text style={[styles.weightLabel, { color: '#EB9848' }]}>Current</Text>
               <Text style={[styles.weightValue, { color: '#EB9848' }]}>{bodyWeight.current}kg</Text>
             </View>
           </View>
-          <Text style={styles.goalText}>Goal Weight: {bodyWeight.goal}kg</Text>
+          <Text style={[styles.goalText, globalStyles.grayText]}>Goal Weight: {bodyWeight.goal}kg</Text>
         </View>
 
         {/* Workout Completeness */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Avg workout completeness</Text>
+        <View style={[styles.card, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.cardTitle, globalStyles.fontWeightSemiBold]}>Avg workout completeness</Text>
           <View style={styles.completenessContainer}>
             <View style={{ width: 90, height: 90, justifyContent: 'center', alignItems: 'center', marginRight: 15 }}>
               <Svg width="90" height="90" viewBox="0 0 100 100">
@@ -822,34 +1104,43 @@ const AdvancedAnalytics = ({ navigation, route }) => {
                   fill="transparent"
                 />
                 
-                {/* Progress circle */}
-                <Circle
-                  cx="50"
-                  cy="50"
-                  r="45"
-                  stroke="#EB9848"
-                  strokeWidth="10"
-                  fill="transparent"
-                  strokeDasharray={`${2 * Math.PI * 45}`}
-                  strokeDashoffset={`${2 * Math.PI * 45 * (1 - completionRate / 100)}`}
-                  strokeLinecap="round"
-                  transform="rotate(-90, 50, 50)"
-                />
+                {/* Progress circle - only show if data is available */}
+                {completionRate > 0 && (
+                  <Circle
+                    cx="50"
+                    cy="50"
+                    r="45"
+                    stroke="#EB9848"
+                    strokeWidth="10"
+                    fill="transparent"
+                    strokeDasharray={`${2 * Math.PI * 45}`}
+                    strokeDashoffset={`${2 * Math.PI * 45 * (1 - completionRate / 100)}`}
+                    strokeLinecap="round"
+                    transform="rotate(-90, 50, 50)"
+                  />
+                )}
               </Svg>
               
-              <Text style={{
+              <Text style={[{
                 fontSize: 24,
                 fontWeight: 'bold',
                 position: 'absolute'
-              }}>
-                {completionRate}%
+              }, globalStyles.fontWeightBold]}>
+                {completionRate > 0 ? `${completionRate}%` : '0%'}
               </Text>
             </View>
             <View style={styles.completionInfo}>
-              <Text style={styles.completionText}>
-                You've completed all exercises{' '}
-                <Text style={{ color: '#EB9848', fontWeight: 'bold' }}>{completionRate}%</Text> of the time. Fantastic work!
-              </Text>
+              {completionRate > 0 ? (
+                <Text style={[styles.completionText, globalStyles.fontWeightRegular]}>
+                  You've completed all exercises{' '}
+                  <Text style={{ color: '#EB9848', fontWeight: 'bold' }}>{completionRate}%</Text> of the time. 
+                  {completionRate >= 90 ? ' Fantastic work!' : completionRate >= 70 ? ' Good progress!' : ' Keep it up!'}
+                </Text>
+              ) : (
+                <Text style={[styles.completionText, globalStyles.fontWeightRegular]}>
+                  No workout data available yet. Complete workouts to see your progress!
+                </Text>
+              )}
               <TouchableOpacity 
                 style={styles.historyButton}
                 onPress={() => navigation.navigate('WorkoutHistory')}
@@ -862,42 +1153,34 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         </View>
 
         {/* Exercise Stats */}
-        <View style={styles.exerciseCard}>
+        <View style={[styles.exerciseCard, globalStyles.cardBackgroundColor, {marginBottom:100}]}>
           <View style={styles.exerciseHeader}>
-            <Text style={styles.exerciseTitle}>
-              {selectedExercise === 'All Exercises' ? 'Overall Progress' : selectedExercise}
+            <Text style={[styles.exerciseTitle, globalStyles.fontWeightSemiBold]}>
+              {selectedExercise === 'No Exercise Selected' ? 'Exercise Progress' : selectedExercise}
             </Text>
-            <TouchableOpacity 
-              style={styles.changeButton}
-              onPress={() => setModalVisible(true)}
-            >
-              <Text style={styles.changeButtonText}>Change Exercise</Text>
-              <FontAwesomeIcon icon={faChevronDown} size={14} color="#007bff" />
-            </TouchableOpacity>
+            
+            {/* Only show the dropdown in the header after an exercise has been selected */}
+            {hasSelectedExercise && (
+              <TouchableOpacity 
+                style={[styles.changeButton, globalStyles.cardBackgroundColor]}
+                onPress={() => setModalVisible(true)}
+              >
+                <Text style={styles.changeButtonText}>Select Exercise</Text>
+                <FontAwesomeIcon icon={faChevronDown} size={14} color="#007bff" />
+              </TouchableOpacity>
+            )}
           </View>
 
-          {loading ? (
-            <ActivityIndicator color="#007bff" size="large" style={styles.loader} />
-          ) : (
-            <>
-              {renderProgressionChart()}
-              {renderVolumeChart()}
-            </>
-          )}
+          {renderProgressionChart()}
+          {renderVolumeChart()}
         </View>
+        {renderExerciseModal()}
       </ScrollView>
       
-      {/* Exercise Selection Modal */}
-      {renderExerciseModal()}
-    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -916,12 +1199,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
   },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -931,9 +1212,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
-    marginHorizontal: 15,
     marginBottom: 15,
     padding: 15,
     shadowColor: '#000',
@@ -944,7 +1223,6 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: '600',
     marginBottom: 15,
   },
   gymVisitsContainer: {
@@ -952,7 +1230,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   visitBox: {
-    backgroundColor: '#fff',
     borderRadius: 8,
     padding: 15,
     flex: 1,
@@ -966,6 +1243,7 @@ const styles = StyleSheet.create({
   visitCount: {
     fontSize: 24,
     fontWeight: 'bold',
+    color: '#000',
   },
   visitLabel: {
     fontSize: 16,
@@ -991,11 +1269,9 @@ const styles = StyleSheet.create({
   },
   weightLabel: {
     fontSize: 16,
-    color: '#888',
   },
   weightValue: {
     fontSize: 20,
-    fontWeight: 'bold',
     marginTop: 5,
   },
   currentWeight: {
@@ -1005,7 +1281,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 15,
     fontSize: 14,
-    color: '#888',
   },
   completenessContainer: {
     flexDirection: 'row',
@@ -1046,9 +1321,7 @@ const styles = StyleSheet.create({
     marginRight: 5,
   },
   exerciseCard: {
-    backgroundColor: '#fff',
     borderRadius: 12,
-    marginHorizontal: 15,
     marginBottom: 20,
     padding: 15,
     shadowColor: '#000',
@@ -1065,13 +1338,11 @@ const styles = StyleSheet.create({
   },
   exerciseTitle: {
     fontSize: 18,
-    fontWeight: '600',
     maxWidth: '70%',
   },
   changeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
@@ -1083,16 +1354,27 @@ const styles = StyleSheet.create({
   chartContainer: {
     marginVertical: 15,
     alignItems: 'center',
+    borderRadius: 8,
+    padding: 15,
   },
   emptyChartContainer: {
     height: 220,
     justifyContent: 'center',
     alignItems: 'center',
     marginVertical: 15,
+    borderRadius: 8,
+    padding: 15,
   },
   emptyChartText: {
-    color: '#888',
     fontSize: 16,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  emptyChartSubtext: {
+    fontSize: 14,
+    marginTop: 5,
+    textAlign: 'center',
+    marginBottom: 20,
   },
   chartTitle: {
     fontSize: 16,
@@ -1124,7 +1406,6 @@ const styles = StyleSheet.create({
   },
   legendText: {
     fontSize: 12,
-    color: '#666',
   },
   statHeader: {
     flexDirection: 'row',
@@ -1161,7 +1442,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: 'white',
     borderRadius: 15,
     width: '80%',
     maxHeight: '70%',
@@ -1178,12 +1458,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
     paddingBottom: 10,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
   },
   closeButton: {
     padding: 5,
@@ -1192,10 +1470,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    
   },
   selectedExerciseItem: {
-    backgroundColor: '#f0f8ff',
+    // Background color is set dynamically based on theme
   },
   exerciseItemText: {
     fontSize: 16,
@@ -1214,6 +1492,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4cd964',
     borderRadius: 10,
+  },
+  initialSelectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  initialSelectionButtonText: {
+    color: '#007bff',
+    marginRight: 8,
+    fontWeight: '500',
+  },
+  premadeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginTop: 5, 
+  },
+  premadeButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
 });
 

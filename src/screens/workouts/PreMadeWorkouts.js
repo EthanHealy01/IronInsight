@@ -466,7 +466,7 @@ export default function PreMadeWorkouts() {
   };
 
   return (
-    <View style={[globalStyles.container, { padding: 15 }]}>
+    <View style={[globalStyles.container]}>
       <View style={[globalStyles.flexRow, { marginBottom: 20 }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}

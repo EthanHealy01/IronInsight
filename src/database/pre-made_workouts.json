@@ -20,26 +20,25 @@
         "title": "Pull",
         "description": "Focused on the posterior chain, this workout targets back width, thickness, and bicep hypertrophy using a combination of vertical and horizontal pulling movements.",
         "exercises": [
-            { "name": "cable one arm bent over row", "id": "0189" },
-            { "name": "assisted pull-up", "id": "0017" },
-            { "name": "dumbbell one arm bent-over row", "id": "0292" },
-            { "name": "cable shrug", "id": "0220" },
-            { "name": "lever seated fly", "id": "0596" },
-            { "name": "decline crunch", "id": "0277" },
-            { "name": "barbell preacher curl", "id": "0070" }
-
+          { "name": "cable one arm bent over row", "id": "0189" },
+          { "name": "assisted pull-up", "id": "0017" },
+          { "name": "dumbbell one arm bent-over row", "id": "0292" },
+          { "name": "cable shrug", "id": "0220" },
+          { "name": "lever seated fly", "id": "0596" },
+          { "name": "decline crunch", "id": "0277" },
+          { "name": "barbell preacher curl", "id": "0070" }
         ]
       },
       {
         "title": "Legs",
         "description": "This leg session blends bilateral and unilateral movements with an emphasis on the quads, glutes, hamstrings, and stabilizers.",
         "exercises": [
-            { "name": "barbell full squat", "id": "0043" },
-            { "name": "barbell romanian deadlift", "id": "0085" },
-            { "name": "walking lunge", "id": "1460" },
-            { "name": "lever seated leg curl", "id": "0599" },
-            { "name": "lever seated calf raise", "id": "0594" },
-            { "name": "cable standing hip extension", "id": "0228" }
+          { "name": "barbell full squat", "id": "0043" },
+          { "name": "barbell romanian deadlift", "id": "0085" },
+          { "name": "walking lunge", "id": "1460" },
+          { "name": "lever seated leg curl", "id": "0599" },
+          { "name": "lever seated calf raise", "id": "0594" },
+          { "name": "cable standing hip extension", "id": "0228" }
         ]
       }
     ]
@@ -53,24 +52,24 @@
         "title": "Upper",
         "description": "Targets all major upper body muscle groups with pressing and pulling movements plus arm isolation for balanced development.",
         "exercises": [
-            { "name": "dumbbell incline bench press", "id": "0314" },
-            { "name": "barbell bent over row", "id": "0027" },
-            { "name": "dumbbell bench seated press", "id": "0290" },
-            { "name": "assisted pull-up", "id": "0017" },
-            { "name": "assisted chest dip (kneeling)", "id": "0009" },
-            { "name": "barbell preacher curl", "id": "0070" }
+          { "name": "dumbbell incline bench press", "id": "0314" },
+          { "name": "barbell bent over row", "id": "0027" },
+          { "name": "dumbbell bench seated press", "id": "0290" },
+          { "name": "assisted pull-up", "id": "0017" },
+          { "name": "assisted chest dip (kneeling)", "id": "0009" },
+          { "name": "barbell preacher curl", "id": "0070" }
         ]
       },
       {
         "title": "Lower",
         "description": "A well-rounded leg day including squats, unilateral movement, and hip hinge mechanics to grow all regions of the lower body.",
         "exercises": [
-            { "name": "sled hack squat", "id": "0743" },
-            { "name": "barbell romanian deadlift", "id": "0085" },
-            { "name": "lever leg extension", "id": "0585" },
-            { "name": "hack calf raise", "id": "1383" },
-            { "name": "hanging leg raise", "id": "0472" },
-            { "name": "lever seated hip abduction", "id": "0597" }
+          { "name": "sled hack squat", "id": "0743" },
+          { "name": "barbell romanian deadlift", "id": "0085" },
+          { "name": "lever leg extension", "id": "0585" },
+          { "name": "hack calf raise", "id": "1383" },
+          { "name": "hanging leg raise", "id": "0472" },
+          { "name": "lever seated hip abduction", "id": "0597" }
         ]
       }
     ]
@@ -84,28 +83,26 @@
         "title": "Full Body A",
         "description": "Efficiently stimulates all major muscle groups in one go using foundational lifts that recruit multiple joints and muscle chains.",
         "exercises": [
-            { "name": "dumbbell incline bench press", "id": "0314" },
-            { "name": "sled hack squat", "id": "0743" },
-            { "name": "barbell bent over row", "id": "0027" },
-            { "name": "lever seated leg curl", "id": "0599" },
-            { "name": "barbell preacher curl", "id": "0070" },
-            { "name": "dumbbell arnold press", "id": "2137" }
+          { "name": "dumbbell incline bench press", "id": "0314" },
+          { "name": "sled hack squat", "id": "0743" },
+          { "name": "barbell bent over row", "id": "0027" },
+          { "name": "lever seated leg curl", "id": "0599" },
+          { "name": "barbell preacher curl", "id": "0070" },
+          { "name": "dumbbell arnold press", "id": "2137" }
         ]
       },
       {
         "title": "Full Body B",
         "description": "Efficiently stimulates all major muscle groups in one go using foundational lifts that recruit multiple joints and muscle chains. (Same as A but with different exercises for a little variety)",
         "exercises": [
-            {"name": "barbell bench press", "id": "0025"},
-            {"name": "barbell romanian deadlift", "id": "0085"},
-            {"name": "cable pulldown (pro lat bar)", "id": "0197"},
-            { "name": "walking lunge", "id": "1460" },
-            { "name": "cable lateral raise", "id": "0178" },
-            { "name": "cable kneeling crunch", "id": "0175" }
- 
+          { "name": "barbell bench press", "id": "0025" },
+          { "name": "barbell romanian deadlift", "id": "0085" },
+          { "name": "cable pulldown (pro lat bar)", "id": "0197" },
+          { "name": "walking lunge", "id": "1460" },
+          { "name": "cable lateral raise", "id": "0178" },
+          { "name": "cable kneeling crunch", "id": "0175" }
         ]
       }
-
     ]
   },
   {
@@ -116,22 +113,51 @@
       {
         "title": "Back & Biceps",
         "description": "Blends horizontal and vertical pulling movements with bicep-specific curls to build pulling strength and arm size.",
-        "exercises": []
+        "exercises": [
+          { "name": "cable pulldown (pro lat bar)", "id": "0197" },
+          { "name": "assisted pull-up", "id": "0017" },
+          { "name": "cable low seated row", "id": "0180" },
+          { "name": "cable standing rear delt row (with rope)", "id": "0233" },
+          { "name": "cable hammer curl (with rope)", "id": "0165" },
+          { "name": "ez barbell close grip preacher curl", "id": "1627" }
+        ]
       },
       {
         "title": "Chest & Triceps",
         "description": "Chest volume is stacked with flat and upper variations, followed by direct triceps isolation for pressing power.",
-        "exercises": []
+        "exercises": [
+          { "name": "dumbbell incline bench press", "id": "0314" },
+          { "name": "assisted chest dip (kneeling)", "id": "0009" },
+          { "name": "lever seated fly", "id": "0596" },
+          {
+            "name": "cable overhead triceps extension (rope attachment)",
+            "id": "0194"
+          },
+          { "name": "cable pushdown (with rope attachment)", "id": "0200" }
+        ]
       },
       {
         "title": "Legs & Shoulders",
         "description": "Heavy squat variations combine with shoulder presses and raises to build both foundational leg strength and overhead pressing ability.",
-        "exercises": []
+        "exercises": [
+          { "name": "smith full squat", "id": "3281" },
+          { "name": "sled 45\u0432\u00b0 leg press", "id": "0739" },
+          { "name": "lever seated leg curl", "id": "0599" },
+          { "name": "cable lateral raise", "id": "0178" },
+          { "name": "dumbbell front raise", "id": "0310" },
+          { "name": "dumbbell rear fly", "id": "0378" },
+          { "name": "dumbbell bench seated press", "id": "0290" }
+        ]
       },
       {
         "title": "Core & Cardio",
         "description": "Stabilizing core movements and conditioning-based circuits to increase muscular endurance and cardiovascular fitness.",
-        "exercises": []
+        "exercises": [
+          { "name": "cable seated crunch", "id": "0212" },
+          { "name": "weighted russian twist (legs up)", "id": "0845" },
+          { "name": "air bike", "id": "0003" },
+          { "name": "run (equipment)", "id": "0684" }
+        ]
       }
     ]
   }

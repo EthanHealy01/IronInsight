@@ -8,6 +8,7 @@ import {
   TouchableOpacity, 
   useColorScheme,
   ImageBackground,
+  Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { styles } from '../../theme/styles';
@@ -324,16 +325,116 @@ export default function WorkoutHome() {
         </TouchableOpacity>
       </View>
 
-      {/* Only show the history button if the user has completed workouts */}
-      {hasWorkoutHistory && (
-        <TouchableOpacity
-          style={[globalStyles.primaryButton, globalStyles.flexRowBetween, { marginBottom: 10, paddingHorizontal:15, paddingVertical:20}]}
-          onPress={openModal}
-        >
-          <Text style={globalStyles.buttonText}>View Workout History</Text>
-          <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
-        </TouchableOpacity>
-      )}
+      {/* Button row with equal width and height buttons */}
+      <View style={[globalStyles.flexRow, { marginBottom: 15, gap: 10 }]}>
+        {hasWorkoutHistory ? (
+          <>
+            <TouchableOpacity
+              style={[
+                globalStyles.primaryButton,
+                globalStyles.flexRowBetween,
+                {
+                  flex: 1,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }
+              ]}
+              onPress={openModal}
+            >
+              <Text 
+                style={[
+                  globalStyles.buttonText,
+                  globalStyles.fontWeightBold,
+                  globalStyles.fontSizeSmall,
+                  {color:'white', marginRight:10}
+                ]}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+                numberOfLines={1}
+              >
+                View Workout History
+              </Text>
+              <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => {
+                // Get the parent (tab) navigator to ensure proper navigation
+                const parentNav = navigation.getParent();
+                if (parentNav) {
+                  parentNav.navigate("Workouts", {
+                    screen: "PreMadeWorkouts"
+                  });
+                }
+              }}
+              style={[
+                globalStyles.flexRowBetween,
+                globalStyles.secondaryColor,
+                {
+                  flex: 1,
+                  borderRadius: 10,
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  justifyContent: "center",
+                  alignItems: "center",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  globalStyles.fontWeightBold,
+                  globalStyles.fontSizeSmall,
+                  { color: "white" },
+                ]}
+                adjustsFontSizeToFit
+                minimumFontScale={0.5}
+                numberOfLines={1}
+              >
+                Choose pre-made routine
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <TouchableOpacity
+            onPress={() => {
+              // Get the parent (tab) navigator to ensure proper navigation
+              const parentNav = navigation.getParent();
+              if (parentNav) {
+                parentNav.navigate("Workouts", {
+                  screen: "PreMadeWorkouts"
+                });
+              }
+            }}
+            style={[
+              globalStyles.flexRowBetween,
+              globalStyles.secondaryColor,
+              {
+                flex: 1,
+                borderRadius: 10,
+                paddingVertical: 10,
+                paddingHorizontal: 10,
+                justifyContent: "center",
+                alignItems: "center",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                globalStyles.fontWeightBold,
+                globalStyles.fontSizeSmall,
+                { color: "white" },
+              ]}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              numberOfLines={1}
+            >
+              Choose pre-made routine
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       <Modal
         animationType="slide"

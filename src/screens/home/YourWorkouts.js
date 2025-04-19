@@ -300,7 +300,7 @@ export default function YourWorkouts({callback={}}) {
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => {
-                      // Get the parent (tab) navigator to ensure proper navigation
+                      // Get the parent (tab) naviga, {screen: "PreMadeWorkouts"}on
                       const parentNav = navigation.getParent();
                       if (parentNav) {
                         parentNav.navigate("Workouts", {
