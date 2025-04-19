@@ -8,7 +8,8 @@ import {
   ActivityIndicator,
   Modal,
   FlatList,
-  useColorScheme
+  useColorScheme,
+  Dimensions
 } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { 
@@ -19,10 +20,12 @@ import {
   faChevronDown,
   faTimes
 } from '@fortawesome/free-solid-svg-icons';
-import { LineChart } from 'react-native-chart-kit';
 import { db } from '../database/db';
 import { styles as globalStylesFunc } from '../theme/styles';
 import Svg, { Circle } from 'react-native-svg';
+import InteractiveChart from '../components/analytics/InteractiveChart';
+
+const screenWidth = Dimensions.get('window').width;
 
 const AdvancedAnalytics = ({ navigation, route }) => {
   const isDarkMode = useColorScheme() === 'dark';
@@ -52,6 +55,10 @@ const AdvancedAnalytics = ({ navigation, route }) => {
   const [exerciseHistoryMap, setExerciseHistoryMap] = useState({});
   const [hasSelectedExercise, setHasSelectedExercise] = useState(false);
 
+  // Calculate responsive chart width (leaving space for card padding etc.)
+  const chartContainerPadding = 10; // Padding inside the card
+  const chartWidth = screenWidth - (chartContainerPadding * 2);
+
   useEffect(() => {
     loadUserData();
     loadGymVisits();
@@ -76,7 +83,10 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       });
       setLoading(true);
       
-      loadExerciseStats(selectedExercise);
+      // Small delay to ensure exercise history is loaded first
+      setTimeout(() => {
+        loadExerciseStats(selectedExercise);
+      }, 100);
     }
   }, [selectedExercise]);
 
@@ -272,6 +282,9 @@ const AdvancedAnalytics = ({ navigation, route }) => {
 
       // Load exercise history for all exercises (to avoid repeated database calls)
       await loadAllExercisesHistory();
+      
+      // Return a resolved promise
+      return Promise.resolve();
     } catch (error) {
       console.error('Error loading available exercises:', error);
       // In case of error
@@ -281,6 +294,9 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       } else {
         setAvailableExercises([]);
       }
+      
+      // Return a rejected promise
+      return Promise.reject(error);
     }
   };
 
@@ -316,6 +332,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
           let totalWeight = 0;
           let setCount = sets.length; // Use actual number of sets
           let setWeights = []; // Track individual set weights
+          let setReps = []; // Also track reps for each set
           
           // Process each set
           for (const set of sets) {
@@ -336,6 +353,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
               totalVolume += weight * reps;
               totalWeight += weight;
               setWeights.push(weight); // Store the actual weight for this set
+              setReps.push(reps); // Store the actual reps for this set
             } else {
               setCount--; // Reduce set count if weight or reps are invalid
             }
@@ -348,7 +366,8 @@ const AdvancedAnalytics = ({ navigation, route }) => {
               totalVolume,
               avgWeight: totalWeight / setCount,
               setCount,
-              setWeights: setWeights.length > 0 ? setWeights : null // Store actual set weights if available
+              setWeights: setWeights.length > 0 ? setWeights : null, // Store actual set weights if available
+              reps: setReps.length > 0 ? setReps : null // Store actual reps if available
             });
           }
         }
@@ -603,310 +622,348 @@ const AdvancedAnalytics = ({ navigation, route }) => {
 
   // Handle exercise selection
   const handleExerciseSelection = (exercise) => {
-    setSelectedExercise(exercise);
     setModalVisible(false);
     
     // If this is the first time selecting an exercise, update the state
     if (!hasSelectedExercise && exercise !== 'No Exercise Selected') {
       setHasSelectedExercise(true);
-      // Reload exercise list without the placeholder
-      loadAvailableExercises();
+      
+      // First reload exercise list and history to ensure data is available
+      loadAvailableExercises().then(() => {
+        // After history is loaded, then set the selected exercise
+        setTimeout(() => {
+          setSelectedExercise(exercise);
+        }, 200);
+      });
+    } else {
+      // For subsequent selections, just set the selected exercise directly
+      setSelectedExercise(exercise);
     }
   };
 
   const renderProgressionChart = () => {
+    // Initial state: Prompt user to select an exercise
+    if (!hasSelectedExercise) {
+      return (
+        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
+          <Text style={[styles.emptyChartText, globalStyles.textColor]}>Select an exercise</Text>
+          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>to view your progression data</Text>
+        </View>
+      );
+    }
+
+    // State: Loading data for the selected exercise
     if (loading) {
       return (
-        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
-          <ActivityIndicator color="#007bff" size="large" />
+        <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.chartTitle, globalStyles.textColor]}>Weights per set</Text>
+          <View style={[styles.loadingContainer, { height: 220 }]}>
+            <ActivityIndicator color="#007bff" size="large" />
+          </View>
         </View>
       );
     }
 
-    if (selectedExercise === 'No Exercise Selected') {
-      return (
-        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
-          <Text style={[styles.emptyChartText, globalStyles.textColor]}>Select an exercise from below</Text>
-          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>to view your progression data</Text>
-          
-          <TouchableOpacity 
-            style={[styles.initialSelectionButton, globalStyles.cardBackgroundColor]}
-            onPress={() => setModalVisible(true)}
-          >
-            <Text style={styles.initialSelectionButtonText}>Select Exercise</Text>
-            <FontAwesomeIcon icon={faChevronDown} size={14} color="#007bff" />
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (!exerciseStats.hasData || !exerciseStats.setWeights || Object.keys(exerciseStats.setWeights).length === 0 || exerciseStats.maxSets === 0) {
-      return (
-        <View style={[styles.emptyChartContainer, {backgroundColor: isDarkMode ? '#000000' : '#fff'}]}>
-          <Text style={[styles.emptyChartText, globalStyles.textColor]}>No workout data available</Text>
-          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>Complete workouts to see progress</Text>
-        </View>
-      );
-    }
-
+    // State: Data loaded (or no data found), render the chart component
     const { setWeights, maxSets } = exerciseStats;
-    
-    // Take only the last 7 data points or fewer if we don't have enough
-    const dataLength = setWeights.set1.length;
-    const startIdx = Math.max(0, dataLength - 7);
-    const endIdx = dataLength;
-    
-    // Create sliced data for each set dynamically
-    const slicedData = {};
-    for (let i = 1; i <= maxSets; i++) {
-      const setKey = `set${i}`;
-      if (setWeights[setKey]) {
-        slicedData[setKey] = setWeights[setKey].slice(startIdx, endIdx);
-      }
-    }
-    
-    // Create labels for the chart based on workout numbers
-    const labels = Array.from({length: slicedData.set1.length}, (_, i) => 
-      `W${i+1}`
-    );
-    
-    // Prepare data for line chart
+
+    // Define colors needed for potential datasets and legend
+    const setColors = [
+      '#007bff', '#ff9500', '#4cd964', '#9932CC', '#FF3B30', '#5856D6', '#FF2D55', 
+      '#FFCC00', '#34C759', '#5AC8FA', '#AF52DE', '#FF9500', '#8A2BE2', '#00BFFF', 
+      '#FF4500', '#32CD32', '#FF1493', '#6495ED', '#00CED1', '#FF8C00'
+    ];
+    const getColor = (index) => setColors[index % setColors.length];
+
+    // Prepare data structure, even if empty
     const chartData = {
-      labels: labels.length > 0 ? labels : ['No data'],
+      labels: [],
       datasets: []
     };
-    
-    // Define colors for up to 20 sets
-    const setColors = [
-      '#007bff', // Blue
-      '#ff9500', // Orange
-      '#4cd964', // Green
-      '#9932CC', // Purple
-      '#FF3B30', // Red
-      '#5856D6', // Indigo
-      '#FF2D55', // Pink
-      '#FFCC00', // Yellow
-      '#34C759', // Green variation
-      '#5AC8FA', // Light blue
-      '#AF52DE', // Purple variation
-      '#FF9500', // Orange variation
-      '#8A2BE2', // Blue violet
-      '#00BFFF', // Deep sky blue
-      '#FF4500', // Orange red
-      '#32CD32', // Lime green
-      '#FF1493', // Deep pink
-      '#6495ED', // Cornflower blue
-      '#00CED1', // Dark turquoise
-      '#FF8C00'  // Dark orange
-    ];
-    
-    // Get additional colors if needed
-    const getColor = (index) => {
-      if (index < setColors.length) {
-        return setColors[index];
-      } else {
-        // Generate additional colors when we go beyond our predefined colors
-        const hue = (index * 137.5) % 360; // Using golden angle to spread colors evenly
-        return `hsl(${hue}, 70%, 60%)`;
-      }
-    };
-    
-    // Add datasets for each set that has data
-    for (let i = 1; i <= maxSets; i++) {
-      const setKey = `set${i}`;
-      if (slicedData[setKey] && slicedData[setKey].some(val => val !== null)) {
-        chartData.datasets.push({
-          data: slicedData[setKey],
-          color: () => getColor(i-1), 
-          strokeWidth: 2
-        });
+    let slicedRepsData = {}; // For tooltip (using weights as per original)
+    let legendItems = [];
+
+    // Only populate if data exists and is valid
+    if (exerciseStats.hasData && setWeights && typeof setWeights === 'object' && Object.keys(setWeights).length > 0 && maxSets > 0) {
+      // Find the length of the first valid set array to determine workout count
+      const firstSetKey = Object.keys(setWeights).find(key => Array.isArray(setWeights[key]));
+      const dataLength = firstSetKey ? setWeights[firstSetKey].length : 0;
+      
+      if (dataLength > 0) {
+        const startIdx = Math.max(0, dataLength - 10); // Limit to last 10 workouts
+        const endIdx = dataLength;
+        const numLabels = endIdx - startIdx;
+
+        // Create labels (Workout numbers W1, W2...)
+        chartData.labels = Array.from({ length: numLabels }, (_, i) =>
+          `W${startIdx + i + 1}` // Use actual workout number index
+        );
+
+        // Populate datasets and slicedRepsData
+        for (let i = 1; i <= maxSets; i++) {
+          const setKey = `set${i}`;
+          if (setWeights[setKey] && Array.isArray(setWeights[setKey])) {
+            const slicedWeightData = setWeights[setKey].slice(startIdx, endIdx);
+            // Only add dataset if it contains non-null values
+            if (slicedWeightData.some(val => val !== null && val !== undefined)) {
+              const datasetColor = getColor(i - 1);
+              chartData.datasets.push({
+                data: slicedWeightData,
+                color: () => datasetColor, // Use consistent color
+                strokeWidth: 2
+              });
+              // Add weight data for tooltip (as per original logic)
+              slicedRepsData[setKey] = slicedWeightData;
+              // Add item for legend
+              legendItems.push({ setNum: i, color: datasetColor });
+            }
+          }
+        }
       }
     }
 
-    // Determine chart background colors based on theme
-    const chartBgColor = isDarkMode ? '#000000' : '#ffffff';
-    const chartGradientFrom = isDarkMode ? '#000000' : '#ffffff';
-    const chartGradientTo = isDarkMode ? '#000000' : '#ffffff';
-    const chartLabelColor = isDarkMode ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)';
+    // Conditionally render legend only if there's data to show
+    const showLegend = legendItems.length > 0;
 
     return (
       <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-        <Text style={[styles.chartTitle, globalStyles.textColor]}>Progressive overload chart</Text>
-        <View style={styles.legendContainer}>
-          {/* Generate legend rows dynamically */}
-          {Array.from({length: maxSets}, (_, i) => i + 1).map(setNum => {
-            const setKey = `set${setNum}`;
-            if (slicedData[setKey] && slicedData[setKey].some(val => val !== null)) {
-              return (
-                <View key={setKey} style={styles.legendRow}>
-                  <View style={[styles.legendColor, { backgroundColor: getColor(setNum-1) }]} />
-                  <Text style={[styles.legendText, globalStyles.grayText]}>set {setNum} weight</Text>
-                </View>
-              );
-            }
-            return null;
-          })}
+        <Text style={[styles.chartTitle, globalStyles.textColor]}>Weights per set</Text>
+        {showLegend && (
+          <View style={styles.legendContainer}>
+            {legendItems.map(item => (
+              <View key={`legend-weight-${item.setNum}`} style={styles.legendRow}>
+                <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                <Text style={[styles.legendText, globalStyles.grayText]}>Set {item.setNum} weight</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <InteractiveChart
+          key={`progression-${selectedExercise}`} // Add key to force remount on exercise change
+          chartData={chartData} // Pass potentially empty structure
+          chartWidth={chartWidth} // Pass calculated width
+          chartHeight={220}
+          isDarkMode={isDarkMode}
+          colors={setColors} // Pass base colors array
+          repsData={slicedRepsData} // Pass sliced data for tooltip
+          maxSets={maxSets} // Pass maxSets for tooltip logic
+          decorationLabel="kg"
+        />
+      </View>
+    );
+  };
+
+  const renderRepsChart = () => {
+    // Skip if no exercise selected or still loading
+    if (!hasSelectedExercise || loading) {
+      // If loading, show a placeholder, otherwise render nothing for reps chart
+      // until progression chart is rendered.
+      return loading ? (
+        <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.chartTitle, globalStyles.textColor]}>Reps per set</Text>
+          <View style={[styles.loadingContainer, { height: 220 }]}>
+            <ActivityIndicator color="#007bff" size="large" />
+          </View>
         </View>
-        <LineChart
-          data={chartData}
-          width={320}
-          height={220}
-          withShadow={false}
-          chartConfig={{
-            backgroundColor: chartBgColor,
-            backgroundGradientFrom: chartGradientFrom,
-            backgroundGradientTo: chartGradientTo,
-            decimalPlaces: 0,
-            color: (opacity = 1) => `rgba(${isDarkMode ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-            labelColor: (opacity = 1) => chartLabelColor,
-            propsForDots: {
-              r: '3',
-              strokeWidth: '2',
-            },
-            propsForLabels: {
-              fontSize: 10
-            },
-            fillShadowGradientOpacity: 0,
-            formatYLabel: formatYLabel,
-            paddingLeft: 30,
-            paddingRight: 30,
-            paddingTop: 20,
-            paddingBottom: 10,
-          }}
-          bezier
-          style={styles.lineChart}
+      ) : null;
+    }
+    
+    // Define colors needed
+    const setColors = [
+      '#007bff', '#ff9500', '#4cd964', '#9932CC', '#FF3B30', '#5856D6', '#FF2D55',
+      '#FFCC00', '#34C759', '#5AC8FA', '#AF52DE', '#FF9500', '#8A2BE2', '#00BFFF',
+      '#FF4500', '#32CD32', '#FF1493', '#6495ED', '#00CED1', '#FF8C00'
+    ];
+    const getColor = (index) => setColors[index % setColors.length];
+
+    // Prepare data structure
+    const chartData = {
+      labels: [],
+      datasets: []
+    };
+    let weightDataForTooltip = {}; // Use weight data for reps chart tooltip
+    let actualMaxSets = 0;
+    let legendItems = [];
+
+    // Populate only if data exists for the selected exercise
+    if (exerciseStats.hasData && exerciseHistoryMap[selectedExercise]) {
+      const exerciseWorkouts = exerciseHistoryMap[selectedExercise] || [];
+      const limitedWorkouts = exerciseWorkouts.slice(-10); // Last 10 workouts
+
+      if (limitedWorkouts.length > 0) {
+        // Determine max sets from actual reps data in the limited workouts
+        limitedWorkouts.forEach(workout => {
+          if (workout.reps && workout.reps.length > actualMaxSets) {
+            actualMaxSets = workout.reps.length;
+          }
+        });
+
+        if (actualMaxSets > 0) {
+          // Create labels (W1, W2...)
+          // Calculate the starting index in the full history
+          const fullHistoryLength = exerciseWorkouts.length;
+          const startIndex = Math.max(0, fullHistoryLength - limitedWorkouts.length);
+          chartData.labels = limitedWorkouts.map((_, i) => `W${startIndex + i + 1}`);
+
+          // Create datasets for reps and weight data for tooltips
+          for (let i = 1; i <= actualMaxSets; i++) {
+            const setKey = `set${i}`;
+            const currentSetRepsData = [];
+            const currentSetWeightData = [];
+
+            limitedWorkouts.forEach(workout => {
+              const reps = workout.reps && workout.reps.length >= i ? workout.reps[i - 1] : null;
+              const weight = workout.setWeights && workout.setWeights.length >= i ? workout.setWeights[i - 1] : null;
+              currentSetRepsData.push(reps);
+              currentSetWeightData.push(weight);
+            });
+
+            // Only add dataset if it contains non-null values
+            if (currentSetRepsData.some(val => val !== null && val !== undefined)) {
+              const datasetColor = getColor(i - 1);
+              chartData.datasets.push({
+                data: currentSetRepsData,
+                color: () => datasetColor,
+                strokeWidth: 2
+              });
+              // Store corresponding weight data for tooltip
+              weightDataForTooltip[setKey] = currentSetWeightData;
+              // Add item for legend
+              legendItems.push({ setNum: i, color: datasetColor });
+            }
+          }
+        }
+      }
+    }
+
+    // Conditionally render legend
+    const showLegend = legendItems.length > 0;
+
+    return (
+      <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
+        <Text style={[styles.chartTitle, globalStyles.textColor]}>Reps per set</Text>
+        {showLegend && (
+          <View style={styles.legendContainer}>
+            {legendItems.map(item => (
+              <View key={`legend-reps-${item.setNum}`} style={styles.legendRow}>
+                <View style={[styles.legendColor, { backgroundColor: item.color }]} />
+                <Text style={[styles.legendText, globalStyles.grayText]}>Set {item.setNum} reps</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        <InteractiveChart
+          key={`reps-${selectedExercise}`} // Add key
+          chartData={chartData} // Pass potentially empty structure
+          chartWidth={chartWidth} // Pass calculated width
+          chartHeight={220}
+          isDarkMode={isDarkMode}
+          colors={setColors} // Pass colors array
+          repsData={weightDataForTooltip} // Pass WEIGHT data for reps chart tooltip
+          maxSets={actualMaxSets} // Pass actual max sets found
+          decorationLabel="reps"
         />
       </View>
     );
   };
 
   const renderVolumeChart = () => {
-    if (loading) {
-      return (
-        <View style={[styles.emptyChartContainer, globalStyles.cardBackgroundColor]}>
-          <ActivityIndicator color="#007bff" size="large" />
+    // Skip if no exercise selected or still loading
+    if (!hasSelectedExercise || loading) {
+      // Show loading placeholder
+      return loading ? (
+        <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
+          <Text style={[styles.chartTitle, globalStyles.textColor]}>Total volume per workout</Text>
+          <View style={[styles.loadingContainer, { height: 220 }]}>
+            <ActivityIndicator color="#007bff" size="large" />
+          </View>
         </View>
-      );
+      ) : null;
     }
 
-    if (selectedExercise === 'No Exercise Selected') {
-      // Don't show a duplicate message
-      return null;
-    }
+    // Prepare data structure
+    const chartData = {
+      labels: [],
+      datasets: []
+    };
+    let repsForTooltip = {}; // For tooltip
+    let showStatsHeader = false;
 
-    if (!exerciseStats.hasData || !exerciseStats.volumeData || exerciseStats.volumeData.length < 2) {
-      return (
-        <View style={[styles.emptyChartContainer, globalStyles.cardBackgroundColor]}>
-          <Text style={[styles.emptyChartText, globalStyles.textColor]}>No volume data available</Text>
-          <Text style={[styles.emptyChartSubtext, globalStyles.grayText]}>Track more workouts to see progress</Text>
-        </View>
-      );
-    }
+    // Populate only if data exists
+    if (exerciseStats.hasData && exerciseStats.volumeData && exerciseStats.volumeData.length > 0) { // Changed to > 0 to show even single point
+      const volumeData = exerciseStats.volumeData;
+      const dataLength = volumeData.length;
+      showStatsHeader = true; // We have data, so show the header stats
 
-    // Take at most 7 evenly spaced data points for the chart
-    const volumeData = exerciseStats.volumeData;
-    const dataLength = volumeData.length;
-    const step = Math.max(1, Math.floor(dataLength / 7));
-    const sampledData = [];
-    const sampledLabels = [];
-    
-    for (let i = 0; i < dataLength; i += step) {
-      if (sampledData.length < 7) {
-        sampledData.push(volumeData[i]);
-        sampledLabels.push(`W${i+1}`);
+      // Take up to 10 data points for the chart
+      const maxPointsToShow = 10;
+      const startIndex = Math.max(0, dataLength - maxPointsToShow);
+      const sampledData = volumeData.slice(startIndex);
+      const sampledLabels = Array.from({ length: sampledData.length }, (_, i) => `W${startIndex + i + 1}`);
+
+      // Prepare dataset for volume chart
+      chartData.labels = sampledLabels;
+      chartData.datasets.push({
+        data: sampledData,
+        color: () => 'rgba(255, 148, 77, 1)', // Volume color
+        strokeWidth: 2
+      });
+
+      // Prepare total reps data for tooltip (matching sampled data points)
+      // Ensure exerciseHistoryMap and selectedExercise are valid before accessing
+      if (exerciseHistoryMap && exerciseHistoryMap[selectedExercise]) {
+        const exerciseWorkouts = exerciseHistoryMap[selectedExercise] || [];
+        const sampledWorkouts = exerciseWorkouts.slice(startIndex, startIndex + sampledData.length); // Align with sampledData
+        repsForTooltip.volume1 = sampledWorkouts.map(workout => {
+          return workout && workout.reps ?
+                 workout.reps.reduce((sum, rep) => sum + (Number(rep) || 0), 0) : '?';
+        });
       }
     }
-    
-    // Make sure we include the last data point
-    if (sampledData.length < 7 && dataLength > 0 && sampledData[sampledData.length - 1] !== volumeData[dataLength - 1]) {
-      sampledData.push(volumeData[dataLength - 1]);
-      sampledLabels.push(`W${dataLength}`);
-    }
 
-    // Prepare data for volume chart
-    const volumeChartData = {
-      labels: sampledLabels,
-      datasets: [
-        {
-          data: sampledData,
-          color: () => 'rgba(255, 148, 77, 1)',
-          strokeWidth: 2
-        }
-      ]
-    };
+    // Only show growth indicator if there's enough data
+    const growthIndicator = showStatsHeader && exerciseStats.volumeData.length > 1 ? (
+      exerciseStats.loadGrowth >= 0 ? (
+        <View style={styles.growthIndicator}>
+          <FontAwesomeIcon icon={faArrowUp} size={12} color="#4cd964" />
+          <Text style={styles.positiveGrowthText}>{exerciseStats.loadGrowth}%</Text>
+        </View>
+      ) : (
+        <View style={styles.growthIndicator}>
+          <FontAwesomeIcon icon={faArrowDown} size={12} color="#ff3b30" />
+          <Text style={styles.negativeGrowthText}>{Math.abs(exerciseStats.loadGrowth)}%</Text>
+        </View>
+      )
+    ) : null;
 
-    const growthIndicator = exerciseStats.loadGrowth >= 0 ? (
-      <View style={styles.growthIndicator}>
-        <FontAwesomeIcon icon={faArrowUp} size={12} color="#4cd964" />
-        <Text style={styles.positiveGrowthText}>{exerciseStats.loadGrowth}%</Text>
-      </View>
-    ) : (
-      <View style={styles.growthIndicator}>
-        <FontAwesomeIcon icon={faArrowDown} size={12} color="#ff3b30" />
-        <Text style={styles.negativeGrowthText}>{Math.abs(exerciseStats.loadGrowth)}%</Text>
-      </View>
-    );
-
-    // Format the average load value - fix kkg issue by ensuring proper formatting
-    const formattedAvgLoad = exerciseStats.avgLoad >= 1000 
-      ? `${(exerciseStats.avgLoad / 1000).toFixed(1)}k`
-      : exerciseStats.avgLoad;
-
-    // Determine chart background colors based on theme
-    const chartBgColor = isDarkMode ? '#000000' : '#ffffff';
-    const chartGradientFrom = isDarkMode ? '#000000' : '#ffffff';
-    const chartGradientTo = isDarkMode ? '#000000' : '#ffffff';
-    const chartLabelColor = isDarkMode ? 'rgba(255, 255, 255, 1)' : 'rgba(0, 0, 0, 1)';
+    // Format average load (most recent volume)
+    const formattedAvgLoad = showStatsHeader && exerciseStats.avgLoad !== undefined
+      ? (exerciseStats.avgLoad >= 1000
+        ? `${(exerciseStats.avgLoad / 1000).toFixed(1)}k`
+        : exerciseStats.avgLoad.toFixed(1)) // Use toFixed(1) for consistency
+      : '0'; // Default if no data
 
     return (
       <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
         <View style={styles.statHeader}>
-          <Text style={[styles.chartTitle, globalStyles.textColor]}>Avg load per workout over time</Text>
-          <View style={styles.statValue}>
-            <Text style={[styles.loadValue, globalStyles.textColor]}>{formattedAvgLoad}kg</Text>
-            {growthIndicator}
-          </View>
+          <Text style={[styles.chartTitle, globalStyles.textColor]}>Total volume per workout</Text>
+          {showStatsHeader && ( // Only show stats if data exists
+            <View style={styles.statValue}>
+              <Text style={[styles.loadValue, globalStyles.textColor]}>{formattedAvgLoad}kg</Text>
+              {growthIndicator}
+            </View>
+          )}
         </View>
-        <LineChart
-          data={volumeChartData}
-          width={320}
-          height={220}
-          withShadow={false}
-          chartConfig={{
-            backgroundColor: chartBgColor,
-            backgroundGradientFrom: chartGradientFrom,
-            backgroundGradientTo: chartGradientTo,
-            decimalPlaces: 1,
-            color: (opacity = 1) => `rgba(${isDarkMode ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
-            labelColor: (opacity = 1) => chartLabelColor,
-            style: {
-              borderRadius: 16,
-            },
-            propsForDots: {
-              r: '3',
-              strokeWidth: '2',
-              stroke: 'rgba(255, 148, 77, 0.3)',
-            },
-            fillShadowGradient: 'rgba(255, 148, 77, 0.3)',
-            fillShadowGradientOpacity: 0,
-            propsForLabels: {
-              fontSize: 10
-            },
-            formatYLabel: formatYLabel,
-            paddingLeft: 30,
-            paddingRight: 30,
-            paddingTop: 20,
-            paddingBottom: 10,
-          }}
-          bezier
-          style={styles.lineChart}
-          withInnerLines={true}
-          withOuterLines={false}
-          withVerticalLines={true}
-          withHorizontalLines={true}
-          withVerticalLabels={true}
-          withHorizontalLabels={true}
-          fromZero={false}
+        <InteractiveChart
+          key={`volume-${selectedExercise}`} // Add key
+          chartData={chartData} // Pass potentially empty structure
+          chartWidth={chartWidth} // Pass calculated width
+          chartHeight={220}
+          isDarkMode={isDarkMode}
+          colors={['rgba(255, 148, 77, 1)']} // Volume color
+          repsData={repsForTooltip} // Pass total reps for tooltip
+          maxSets={1} // Volume chart only has one dataset
+          decorationLabel="kg"
         />
       </View>
     );
@@ -964,39 +1021,12 @@ const AdvancedAnalytics = ({ navigation, route }) => {
     );
   };
 
-  const formatYLabel = (value) => {
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}k`;
-    }
-    return value.toString();
-  };
-
-  // Format number with k suffix for thousands
-  const formatNumber = (value) => {
-    if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}k`;
-    }
-    return value.toString();
-  };
-
   return (
       <ScrollView style={[globalStyles.container]}>
         <View style={styles.header}>
           <View style={styles.profileSection}>
             <Text style={[styles.title, globalStyles.fontWeightBold]}>General Analytics</Text>
           </View>
-          <TouchableOpacity 
-            style={[styles.refreshButton, globalStyles.cardBackgroundColor]}
-            onPress={() => {
-              setLoading(true);
-              loadGymVisits();
-              loadUserData();
-              loadAvailableExercises();
-            }}
-          >
-            <Text style={[styles.periodText, globalStyles.fontWeightRegular]}>Monthly</Text>
-            <FontAwesomeIcon icon={faRotate} size={16} color={globalStyles.fontWeightRegular.color} />
-          </TouchableOpacity>
         </View>
 
         {/* Gym Visits Section */}
@@ -1160,7 +1190,6 @@ const AdvancedAnalytics = ({ navigation, route }) => {
             </Text>
             
             {/* Only show the dropdown in the header after an exercise has been selected */}
-            {hasSelectedExercise && (
               <TouchableOpacity 
                 style={[styles.changeButton, globalStyles.cardBackgroundColor]}
                 onPress={() => setModalVisible(true)}
@@ -1168,10 +1197,10 @@ const AdvancedAnalytics = ({ navigation, route }) => {
                 <Text style={styles.changeButtonText}>Select Exercise</Text>
                 <FontAwesomeIcon icon={faChevronDown} size={14} color="#007bff" />
               </TouchableOpacity>
-            )}
           </View>
 
           {renderProgressionChart()}
+          {renderRepsChart()}
           {renderVolumeChart()}
         </View>
         {renderExerciseModal()}
@@ -1355,7 +1384,6 @@ const styles = StyleSheet.create({
     marginVertical: 15,
     alignItems: 'center',
     borderRadius: 8,
-    padding: 15,
   },
   emptyChartContainer: {
     height: 220,
@@ -1363,7 +1391,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 15,
     borderRadius: 8,
-    padding: 15,
+
   },
   emptyChartText: {
     fontSize: 16,
@@ -1504,7 +1532,6 @@ const styles = StyleSheet.create({
   },
   initialSelectionButtonText: {
     color: '#007bff',
-    marginRight: 8,
     fontWeight: '500',
   },
   premadeButton: {
@@ -1520,6 +1547,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

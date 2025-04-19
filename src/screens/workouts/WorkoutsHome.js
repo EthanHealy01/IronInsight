@@ -455,7 +455,7 @@ export default function WorkoutHome() {
         </Text>
       ) : (
         <>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{marginBottom:50}}>
           {templates.map((template, index)=>{
             return (
               renderTemplateCard(template, index)
