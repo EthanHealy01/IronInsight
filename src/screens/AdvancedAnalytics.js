@@ -656,7 +656,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
     if (loading) {
       return (
         <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-          <Text style={[styles.chartTitle, globalStyles.textColor]}>Weights per set</Text>
+          <Text style={[globalStyles.fontSizeLarge,]}>Weights per set</Text>
           <View style={[styles.loadingContainer, { height: 220 }]}>
             <ActivityIndicator color="#007bff" size="large" />
           </View>
@@ -727,7 +727,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
 
     return (
       <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-        <Text style={[styles.chartTitle, globalStyles.textColor]}>Weights per set</Text>
+        <Text style={[globalStyles.fontSizeLarge, {marginBottom: 10}]}>Weights per set</Text>
         {showLegend && (
           <View style={styles.legendContainer}>
             {legendItems.map(item => (
@@ -760,7 +760,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       // until progression chart is rendered.
       return loading ? (
         <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-          <Text style={[styles.chartTitle, globalStyles.textColor]}>Reps per set</Text>
+          <Text style={[globalStyles.fontSizeLarge]}>Reps per set</Text>
           <View style={[styles.loadingContainer, { height: 220 }]}>
             <ActivityIndicator color="#007bff" size="large" />
           </View>
@@ -841,7 +841,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
 
     return (
       <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-        <Text style={[styles.chartTitle, globalStyles.textColor]}>Reps per set</Text>
+        <Text style={[globalStyles.fontSizeLarge,{marginBottom: 10}]}>Reps per set</Text>
         {showLegend && (
           <View style={styles.legendContainer}>
             {legendItems.map(item => (
@@ -873,7 +873,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       // Show loading placeholder
       return loading ? (
         <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
-          <Text style={[styles.chartTitle, globalStyles.textColor]}>Total volume per workout</Text>
+          <Text style={[globalStyles.fontSizeLarge]}>Total volume per workout</Text>
           <View style={[styles.loadingContainer, { height: 220 }]}>
             <ActivityIndicator color="#007bff" size="large" />
           </View>
@@ -946,10 +946,10 @@ const AdvancedAnalytics = ({ navigation, route }) => {
     return (
       <View style={[styles.chartContainer, globalStyles.cardBackgroundColor]}>
         <View style={styles.statHeader}>
-          <Text style={[styles.chartTitle, globalStyles.textColor]}>Total volume per workout</Text>
+          <Text style={[globalStyles.fontSizeLarge]}>Total volume per workout</Text>
           {showStatsHeader && ( // Only show stats if data exists
             <View style={styles.statValue}>
-              <Text style={[styles.loadValue, globalStyles.textColor]}>{formattedAvgLoad}kg</Text>
+              <Text style={[globalStyles.fontSizeMedium]}>{formattedAvgLoad}kg</Text>
               {growthIndicator}
             </View>
           )}
