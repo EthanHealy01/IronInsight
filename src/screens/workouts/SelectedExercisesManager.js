@@ -9,6 +9,7 @@ import {
   useColorScheme,
   Dimensions,
   Alert,
+  Pressable,
 } from "react-native";
 import { FontAwesomeIcon } from "@fortawesome/react-native-fontawesome";
 import {
@@ -454,7 +455,7 @@ function ExerciseItem({
         containerStyle={{ borderRadius: 8 }}
       >
         {/* Collapsible header */}
-        <TouchableOpacity
+        <Pressable
           onPress={() => onToggleExpand(index)}
           style={[
             globalStyles.flexRowBetween,
@@ -509,7 +510,7 @@ function ExerciseItem({
             size={16}
             color={isDark ? "#FFFFFF" : "#000000"}
           />
-        </TouchableOpacity>
+        </Pressable>
       </Swipeable>
 
       {isExpanded && (
