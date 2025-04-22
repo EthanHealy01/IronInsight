@@ -16,7 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ironinsight.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "We use your camera so you can capture photos of your workouts and progress.",
+        "NSPhotoLibraryUsageDescription": "We access your photo library to let you upload progress photos and set a profile picture."
       }
     },
     "android": {

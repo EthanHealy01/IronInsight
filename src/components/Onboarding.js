@@ -95,7 +95,7 @@ const Onboarding = ({ onComplete }) => {
                 { color: '#fff', marginTop: 20 }
               ]}
             >
-              IronInsight: Your free fitness app, always. Click 'Get Started' to set your goals and achieve them together.
+              IronInsight: Click 'Get Started' to set your goals and achieve them together.
             </Text>
 
             <TouchableOpacity

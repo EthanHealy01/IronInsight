@@ -23,7 +23,7 @@ const InteractiveChart = ({
   if (!datasets.length || !labels.length) {
     return (
       <View style={[styles.emptyContainer, { width: chartWidth, height: chartHeight }]}>
-        <Text style={styles.emptyText}>No data available</Text>
+        <Text style={styles.emptyText}>Not enough data available to display chart</Text>
       </View>
     );
   }

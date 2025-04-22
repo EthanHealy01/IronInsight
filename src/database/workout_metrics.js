@@ -24,6 +24,12 @@ export const AVAILABLE_METRICS = [
     type: METRIC_TYPES.NUMBER,
   },
   {
+    baseId: 'minutes',
+    label: 'Minutes',
+    description: "Seconds - Time in seconds for the exercise",
+    type: METRIC_TYPES.NUMBER,
+  },
+  {
     baseId: 'weight_assistance',
     label: 'Assistance Weight',
     description: 'Assistance Weight - Weight used to assist with the exercise',

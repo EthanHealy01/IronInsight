@@ -31,6 +31,7 @@ export default function WorkoutHome() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [hasWorkoutHistory, setHasWorkoutHistory] = useState(false);
+  const [newWorkoutModalVisible, setNewWorkoutModalVisible] = useState(false);
 
   // Track which image index to use for each muscle group
   const muscleImageCountersRef = useRef({});
@@ -299,6 +300,16 @@ export default function WorkoutHome() {
     setModalVisible(false);
   };
 
+  // New function to open the workout options modal
+  const openNewWorkoutModal = () => {
+    setNewWorkoutModalVisible(true);
+  };
+
+  // New function to close the workout options modal
+  const closeNewWorkoutModal = () => {
+    setNewWorkoutModalVisible(false);
+  };
+
   return (
     <View style={[globalStyles.container]}>
       <View style={[globalStyles.flexRowBetween, { marginBottom: 20 }]}>
@@ -312,10 +323,10 @@ export default function WorkoutHome() {
         </Text>
         <TouchableOpacity
           style={globalStyles.flexRow}
-          onPress={() => navigation.navigate("CreateWorkout")}
+          onPress={openNewWorkoutModal}
         >
           <Text style={[globalStyles.fontWeightSemiBold, { marginRight: 5 }]}>
-            Create Workout
+            New Workout
           </Text>
           <FontAwesomeIcon
             icon={faPlus}
@@ -328,111 +339,38 @@ export default function WorkoutHome() {
       {/* Button row with equal width and height buttons */}
       <View style={[globalStyles.flexRow, { marginBottom: 15, gap: 10 }]}>
         {hasWorkoutHistory ? (
-          <>
-            <TouchableOpacity
-              style={[
-                globalStyles.primaryButton,
-                globalStyles.flexRowBetween,
-                {
-                  flex: 1,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  borderRadius: 10,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }
-              ]}
-              onPress={openModal}
-            >
-              <Text 
-                style={[
-                  globalStyles.buttonText,
-                  globalStyles.fontWeightBold,
-                  globalStyles.fontSizeSmall,
-                  {color:'white', marginRight:10}
-                ]}
-                adjustsFontSizeToFit
-                minimumFontScale={0.5}
-                numberOfLines={1}
-              >
-                View Workout History
-              </Text>
-              <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => {
-                // Get the parent (tab) navigator to ensure proper navigation
-                const parentNav = navigation.getParent();
-                if (parentNav) {
-                  parentNav.navigate("Workouts", {
-                    screen: "PreMadeWorkouts"
-                  });
-                }
-              }}
-              style={[
-                globalStyles.flexRowBetween,
-                globalStyles.secondaryColor,
-                {
-                  flex: 1,
-                  borderRadius: 10,
-                  paddingVertical: 10,
-                  paddingHorizontal: 10,
-                  justifyContent: "center",
-                  alignItems: "center",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  globalStyles.fontWeightBold,
-                  globalStyles.fontSizeSmall,
-                  { color: "white" },
-                ]}
-                adjustsFontSizeToFit
-                minimumFontScale={0.5}
-                numberOfLines={1}
-              >
-                Choose pre-made routine
-              </Text>
-            </TouchableOpacity>
-          </>
-        ) : (
           <TouchableOpacity
-            onPress={() => {
-              // Get the parent (tab) navigator to ensure proper navigation
-              const parentNav = navigation.getParent();
-              if (parentNav) {
-                parentNav.navigate("Workouts", {
-                  screen: "PreMadeWorkouts"
-                });
-              }
-            }}
             style={[
+              globalStyles.primaryButton,
               globalStyles.flexRowBetween,
-              globalStyles.secondaryColor,
               {
                 flex: 1,
-                borderRadius: 10,
                 paddingVertical: 10,
                 paddingHorizontal: 10,
+                borderRadius: 10,
                 justifyContent: "center",
                 alignItems: "center",
-              },
+              }
             ]}
+            onPress={openModal}
           >
-            <Text
+            <Text 
               style={[
+                globalStyles.buttonText,
                 globalStyles.fontWeightBold,
                 globalStyles.fontSizeSmall,
-                { color: "white" },
+                {color:'white', marginRight:10}
               ]}
               adjustsFontSizeToFit
               minimumFontScale={0.5}
               numberOfLines={1}
             >
-              Choose pre-made routine
+              View Workout History
             </Text>
+            <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
           </TouchableOpacity>
+        ) : (
+          <View style={{flex: 1}}></View>
         )}
       </View>
 
@@ -472,6 +410,118 @@ export default function WorkoutHome() {
         handleStartWorkout={handleStartWorkout}
         handleDeleteTemplate={handleDeleteTemplate}
       />
+
+      {/* New Workout Options Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={newWorkoutModalVisible}
+        onRequestClose={closeNewWorkoutModal}
+      >
+        <View style={{ 
+          flex: 1, 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        }}> 
+          <View style={[
+            globalStyles.modalView, 
+            { 
+              width: '80%', 
+              padding: 20,
+              borderRadius: 10,
+              backgroundColor: isDark ? '#222' : '#fff'
+            }
+          ]}>
+            <Text style={[
+              globalStyles.fontWeightBold, 
+              globalStyles.fontSizeLarge,
+              { marginBottom: 20, textAlign: 'center' }
+            ]}>
+              New Workout
+            </Text>
+            
+            {/* Create blank workout option */}
+            <TouchableOpacity
+              style={[
+                globalStyles.primaryButton,
+                { 
+                  width: '100%', 
+                  marginBottom: 15,
+                  paddingVertical: 15,
+                  borderRadius: 10,
+                  justifyContent: "center",
+                  alignItems: "center"
+                }
+              ]}
+              onPress={() => {
+                closeNewWorkoutModal();
+                navigation.navigate("CreateWorkout");
+              }}
+            >
+              <Text style={[
+                globalStyles.fontWeightRegular,
+                { color: 'white' }
+              ]}>
+                Create a workout from scratch
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Choose pre-made routine option */}
+            <TouchableOpacity
+              style={[
+                globalStyles.secondaryColor,
+                { 
+                  width: '100%', 
+                  paddingVertical: 15,
+                  borderRadius: 10,
+                  justifyContent: "center",
+                  alignItems: "center"
+                }
+              ]}
+              onPress={() => {
+                closeNewWorkoutModal();
+                // Get the parent (tab) navigator to ensure proper navigation
+                const parentNav = navigation.getParent();
+                if (parentNav) {
+                  parentNav.navigate("Workouts", {
+                    screen: "PreMadeWorkouts"
+                  });
+                }
+              }}
+            >
+              <Text style={[
+                globalStyles.fontWeightRegular,
+                { color: 'white' }
+              ]}>
+                Choose pre-made routine
+              </Text>
+            </TouchableOpacity>
+            
+            {/* Cancel button */}
+            <TouchableOpacity
+              style={[
+                { 
+                  width: '100%', 
+                  marginTop: 15,
+                  paddingVertical: 15,
+                  borderRadius: 10,
+                  justifyContent: "center",
+                  alignItems: "center"
+                }
+              ]}
+              onPress={closeNewWorkoutModal}
+            >
+              <Text style={[
+                globalStyles.fontWeightBold,
+                { color: isDark ? '#fff' : '#000' }
+              ]}>
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
