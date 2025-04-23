@@ -38,6 +38,34 @@ async function createTablesIfNotExist(database) {
   `);
 
   // -------------------------------------------------------------------------
+  // RUNS
+  // -------------------------------------------------------------------------
+  await database.execAsync(`
+    CREATE TABLE IF NOT EXISTS runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      name TEXT,
+      distance REAL,
+      duration INTEGER,
+      pace REAL,
+      start_time TEXT,
+      end_time TEXT,
+      route_data TEXT,
+      time_at_1k INTEGER,
+      time_at_5k INTEGER,
+      time_at_10k INTEGER,
+      time_at_half_marathon INTEGER,
+      time_at_marathon INTEGER,
+      calories INTEGER,
+      avg_heart_rate INTEGER,
+      max_heart_rate INTEGER,
+      created_at TEXT,
+      updated_at TEXT,
+      FOREIGN KEY (user_id) REFERENCES user_info(id)
+    );
+  `);
+
+  // -------------------------------------------------------------------------
   // WORKOUT TEMPLATES
   // -------------------------------------------------------------------------
   await database.execAsync(`

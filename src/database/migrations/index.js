@@ -1,5 +1,5 @@
 import { analyticsSetup } from './analytics_setup';
-
+import { createRunsTable } from './create_runs_table';
 export async function runMigrations(db) {
   try {
     // Create migrations table if it doesn't exist
@@ -11,7 +11,7 @@ export async function runMigrations(db) {
       )
     `);
     // Setup analytics to use existing tables
-    await analyticsSetup();
+    await createRunsTable();
 
     return true;
   } catch (error) {

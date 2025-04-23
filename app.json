@@ -12,13 +12,28 @@
       "resizeMode": "contain",
       "backgroundColor": "#000000"
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      "expo-sqlite"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.ironinsight.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "We use your camera so you can capture photos of your workouts and progress.",
-        "NSPhotoLibraryUsageDescription": "We access your photo library to let you upload progress photos and set a profile picture."
+        "NSPhotoLibraryUsageDescription": "We access your photo library to let you upload progress photos and set a profile picture.",
+        "NSLocationWhenInUseUsageDescription": "We need your location to track your runs and calculate distance, pace, and route.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "We need your location to track your runs even when the app is in the background. This allows you to lock your phone or use other apps while recording your run.",
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -26,7 +41,13 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.ironinsight.app"
+      "package": "com.ironinsight.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

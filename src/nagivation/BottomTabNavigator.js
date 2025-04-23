@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faUserAlt, faChartLine, faDumbbell, faHomeLgAlt } from '@fortawesome/free-solid-svg-icons';
+import { faUserAlt, faChartLine, faDumbbell, faHomeLgAlt, faRunning } from '@fortawesome/free-solid-svg-icons';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeStack from './stacks/HomeStack';
 import AnalyticsStack from './stacks/AnalyticsStack';
 import WorkoutsStack from './stacks/WorkoutsStack';
 import ProfileStack from './stacks/ProfileStack';
+import RunTrackerStack from './stacks/RunTrackerStack';
 import { styles } from '../theme/styles';
 
 // CustomTabBar.js
@@ -15,6 +16,7 @@ const rootScreens = {
     Analytics: 'AnalyticsHome',
     Workouts: 'WorkoutsHome',
     Profile: 'ProfileHome',
+    Run: 'RunTrackerMain',
   };
 
 const CustomTabBar = ({ state, descriptors, navigation }) => {
@@ -24,6 +26,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
       Analytics: faChartLine,
       Workouts: faDumbbell,
       Profile: faUserAlt,
+      Run: faRunning,
     };
   
     return (
@@ -63,7 +66,7 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
               }
             }
           };
-  
+
           return (
             <TouchableOpacity
               key={route.key}
@@ -98,7 +101,6 @@ const CustomTabBar = ({ state, descriptors, navigation }) => {
     );
   };
 
-
   
 // Tab Navigator
 const Tab = createBottomTabNavigator();
@@ -111,6 +113,7 @@ export default function BottomTabNavigator() {
         >
             <Tab.Screen name="Home" component={HomeStack} />
             <Tab.Screen name="Analytics" component={AnalyticsStack} />
+            <Tab.Screen name="Run" component={RunTrackerStack} />
             <Tab.Screen name="Workouts" component={WorkoutsStack} />
             <Tab.Screen name="Profile" component={ProfileStack} />
         </Tab.Navigator>
