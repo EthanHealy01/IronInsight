@@ -393,12 +393,13 @@ export default function WorkoutHome() {
         </Text>
       ) : (
         <>
-        <ScrollView showsVerticalScrollIndicator={false} style={{marginBottom:50}}>
+        <ScrollView showsVerticalScrollIndicator={false} >
           {templates.map((template, index)=>{
             return (
               renderTemplateCard(template, index)
             )
           })}
+          <View style={{height: 60}}/>
         </ScrollView>
         </>
       )}
