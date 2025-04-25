@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const LOCATION_TRACKING = 'background-location-task';
 
 // Storage keys
-const ACTIVE_RUN_KEY = '@active_run';
+export const ACTIVE_RUN_KEY = '@active_run';
 export const RUN_LOCATIONS_KEY = '@run_locations';
 export const RUN_STATS_KEY = '@run_stats';
 
@@ -33,6 +33,30 @@ export const initBackgroundTracking = () => {
         return;
       }
       
+// inside TaskManager.defineTask
+if (activeRun.resumeFreeze) {
+  const now = Date.now();
+  if (activeRun.resumeFreezeExpires && now >= activeRun.resumeFreezeExpires) {
+    // end the freeze *and* drop the just‐resumed flag immediately
+    delete activeRun.resumeFreeze;
+    delete activeRun.resumeFreezeExpires;
+    delete activeRun.justResumed;
+    delete activeRun.resumeTime;
+    delete activeRun.resumeStats;
+
+    await AsyncStorage.setItem(ACTIVE_RUN_KEY,
+                               JSON.stringify(activeRun));
+  } else {
+    // still in freeze window: restore the saved stats then bail out
+    if (activeRun.resumeStats) {
+      await AsyncStorage.setItem(RUN_STATS_KEY,
+                                JSON.stringify(activeRun.resumeStats));
+    }
+    return;
+  }
+}
+
+      
       // Get existing locations for this run
       const locationsString = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
       let runLocations = locationsString ? JSON.parse(locationsString) : [];
@@ -46,7 +70,7 @@ export const initBackgroundTracking = () => {
         const location = locations[0];
         
         if (location) {
-          // Add the new location
+          // Create the new location object
           const newLocation = {
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
@@ -55,6 +79,44 @@ export const initBackgroundTracking = () => {
             altitude: location.coords.altitude,
           };
           
+          // Check if we just resumed and need to prevent a location jump
+          if (activeRun.justResumed && activeRun.lastLocation) {
+            // Calculate how long ago the resume happened
+            const timeSinceResume = new Date().getTime() - activeRun.resumeTime;
+            const lastLocation = activeRun.lastLocation;
+            
+            // Be more strict - check for 15 seconds after resuming
+            if (timeSinceResume < 15000) {
+              console.log("Recently resumed, strictly checking for location jumps");
+              
+              // Calculate distance between last location and new location
+              const jumpDistance = calculateDistance(
+                lastLocation.latitude, lastLocation.longitude,
+                newLocation.latitude, newLocation.longitude
+              );
+              
+              // If the jump is larger than 15 meters, ignore this location update
+              if (jumpDistance > 0.015) {
+                console.log(`Preventing location jump of ${jumpDistance.toFixed(3)}km after resume`);
+                
+                // Force the preserved stats back into storage
+                if (activeRun.resumeStats) {
+                  await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(activeRun.resumeStats));
+                }
+                return;
+              } else {
+                // Distance is very reasonable, allow the update but keep justResumed flag
+                console.log("Small movement detected, allowing update but maintaining just-resumed flag");
+              }
+            } else {
+              // More than 15 seconds passed, clear the resume flag
+              console.log("Resume protection period ended, clearing just-resumed flag");
+              activeRun.justResumed = false;
+              await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(activeRun));
+            }
+          }
+          
+          // Add the new location
           runLocations.push(newLocation);
           locationAdded = true;
           
@@ -63,19 +125,25 @@ export const initBackgroundTracking = () => {
         }
       }
       
-      // Calculate stats for this run (distance, duration, pace) - do this even without new locations
-      // Always update duration because that should increase even without movement
-      const stats = await calculateRunStats(runLocations, activeRun.startTime, activeRun.pausedDuration);
+      // Get current stats from storage
+      const currentStatsString = await AsyncStorage.getItem(RUN_STATS_KEY);
+      const currentStats = currentStatsString ? JSON.parse(currentStatsString) : null;
       
-      // Log an update every time
-      if (locationAdded) {
-        console.log(`Background update with new location: Distance: ${stats.distance.toFixed(2)}km, Duration: ${stats.duration.toFixed(0)}s`);
-      } else {
-        console.log(`Background timer update: Duration: ${stats.duration.toFixed(0)}s`);
+      // Only recalculate stats if we added a location or don't have stats yet
+      if (locationAdded || !currentStats) {
+        // Calculate stats for this run (distance, duration, pace)
+        const stats = await calculateRunStats(runLocations, activeRun.startTime, activeRun.pausedDuration);
+        
+        // Log an update
+        if (locationAdded) {
+          console.log(`Background update with new location: Distance: ${stats.distance.toFixed(2)}km, Duration: ${stats.duration.toFixed(0)}s`);
+        } else {
+          console.log(`Background timer update: Duration: ${stats.duration.toFixed(0)}s`);
+        }
+        
+        // Save the updated stats
+        await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(stats));
       }
-      
-      // Save the updated stats
-      await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(stats));
     } catch (err) {
       console.error("Error processing location update:", err);
     }
@@ -164,22 +232,39 @@ export const handleForegroundReturn = async () => {
   
   const runData = JSON.parse(runDataString);
   
-  // If tracking and not paused, force-update stats
-  if (runData.isTracking && !runData.isPaused) {
+  // If tracking (regardless of paused state), force-update stats to handle phone restart
+  if (runData.isTracking) {
+    console.log("App returned to foreground - handling possible restart");
+    console.log("Run data found:", {
+      startTime: new Date(runData.startTime).toISOString(),
+      pausedDuration: runData.pausedDuration / 1000 + " seconds", 
+      isPaused: runData.isPaused
+    });
+    
     const locationsString = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
     const locations = locationsString ? JSON.parse(locationsString) : [];
     
-    // Force update stats calculation with fresh timestamp
+    // Force update stats calculation with stored startTime and pausedDuration
+    // This is critical for phone off/on scenarios where the app restarts
     const stats = await calculateRunStats(locations, runData.startTime, runData.pausedDuration);
     
-    // Always update stats in storage
+    // Always update stats in storage, even when paused, to ensure duration is correct
+    console.log("Updated stats after foreground return:", stats);
     await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(stats));
     
+
+// Clear any resume‐protection flags so UI will refresh next time
+if (runData.resumeFreeze || runData.justResumed) {
+  runData.resumeFreeze = false;
+  runData.justResumed   = false;
+  delete runData.resumeFreezeExpires;
+  delete runData.lastLocation;
+  delete runData.resumeStats;
+}
     // Update the lastBackgroundTime to now
     runData.lastBackgroundTime = new Date().getTime();
     await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(runData));
     
-    console.log("App returned to foreground - Stats updated:", stats);
     return true;
   }
   return false;
@@ -216,6 +301,14 @@ export const resumeLocationTracking = async (resumeTime) => {
   
   const currentTime = resumeTime || new Date().getTime();
   
+  // Get the current stats and path before resuming - SAVE THESE EXPLICITLY
+  const currentStatsString = await AsyncStorage.getItem(RUN_STATS_KEY);
+  const currentStats = currentStatsString ? JSON.parse(currentStatsString) : { distance: 0, duration: 0, pace: 0 };
+  
+  // Also save the current route coordinates
+  const currentPathString = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
+  const currentPath = currentPathString ? JSON.parse(currentPathString) : [];
+  
   // Calculate time spent paused if we have a pauseStartTime
   if (runData.pauseStartTime) {
     const pauseDuration = currentTime - runData.pauseStartTime;
@@ -226,10 +319,47 @@ export const resumeLocationTracking = async (resumeTime) => {
   // Update run data to resume
   runData.isPaused = false;
   runData.pauseStartTime = null;
+  runData.isTracking = true; // Ensure tracking flag is set
+  
+  // Add a flag that tracks if this is a recent resume to prevent location jumps
+  runData.justResumed = true;
+  runData.resumeTime = currentTime;
+  runData.resumeFreeze = true;  // Add a stronger flag to completely freeze updates
+  
+  // Save last location and stats EXACTLY at time of resume
+  runData.lastLocation = currentPath.length > 0 ? currentPath[currentPath.length - 1] : null;
+  runData.resumeStats = currentStats;
+  
+  // Add automatic expiration time for the freeze - this is safer than setTimeout
+  runData.resumeFreezeExpires = currentTime + 3000; // 3 seconds from now
   
   // Save the updated run data
   await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(runData));
+  
+  // Force the preserved stats back into storage to prevent any changes during resume freeze
+  await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(currentStats));
+  
   console.log("Resumed tracking. Total paused time:", runData.pausedDuration/1000, "seconds");
+  console.log("Preserved stats:", currentStats);
+  console.log("Resume freeze will expire at:", new Date(runData.resumeFreezeExpires).toLocaleTimeString());
+  
+  return runData;
+};
+
+// Helper function to get the last location in the current path
+const getCurrentLastLocation = async () => {
+  try {
+    const locationsString = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
+    if (!locationsString) return null;
+    
+    const locations = JSON.parse(locationsString);
+    if (locations.length === 0) return null;
+    
+    return locations[locations.length - 1];
+  } catch (error) {
+    console.error("Error getting last location:", error);
+    return null;
+  }
 };
 
 // Stop location tracking
@@ -264,11 +394,19 @@ const calculateRunStats = async (locations, startTime, pausedDuration) => {
   const runData = runDataString ? JSON.parse(runDataString) : null;
   const isPaused = runData?.isPaused || false;
   
+  // IMPORTANT: If startTime is missing but we have it in runData, use that
+  // This fixes cases where the app restarts and loses the startTime parameter
+  const effectiveStartTime = startTime || runData?.startTime;
+  if (!startTime && runData?.startTime) {
+    console.log("No startTime provided, using persisted startTime from runData:", new Date(runData.startTime).toISOString());
+  }
+  
   // Calculate distance only if we have new locations and not paused
   let totalDistance = existingStats.distance;
   
   if (!isPaused && locations && locations.length >= 2) {
-    totalDistance = 0; // Reset if we're recalculating from locations
+    // Recalculate distance from all locations to ensure accuracy
+    totalDistance = 0; 
     for (let i = 1; i < locations.length; i++) {
       const { latitude: lat1, longitude: lon1 } = locations[i - 1];
       const { latitude: lat2, longitude: lon2 } = locations[i];
@@ -282,19 +420,30 @@ const calculateRunStats = async (locations, startTime, pausedDuration) => {
         }
       }
     }
+    
+    // If totalDistance is significantly less than existing, something went wrong
+    if (totalDistance > 0 && totalDistance < existingStats.distance * 0.9) {
+      console.log(`Warning: New calculated distance (${totalDistance.toFixed(3)}km) is much less than existing (${existingStats.distance.toFixed(3)}km), keeping existing.`);
+      totalDistance = existingStats.distance;
+    }
   }
   
   // Always calculate current duration accurately using current timestamp
   const currentTime = new Date().getTime();
   
   // Validate startTime to ensure it's not in the future
-  const validStartTime = startTime && startTime <= currentTime 
-    ? startTime 
+  const validStartTime = effectiveStartTime && effectiveStartTime <= currentTime 
+    ? effectiveStartTime 
     : currentTime - 1000; // Default to 1 second ago if invalid
   
-  // Validate pausedDuration is not negative
-  const validPausedDuration = pausedDuration && pausedDuration >= 0 
+  // Also use pausedDuration from runData if available and not provided directly
+  const effectivePausedDuration = pausedDuration !== undefined 
     ? pausedDuration 
+    : runData?.pausedDuration || 0;
+  
+  // Validate pausedDuration is not negative
+  const validPausedDuration = effectivePausedDuration >= 0 
+    ? effectivePausedDuration 
     : 0;
   
   // If paused, use the existing duration instead of calculating a new one
@@ -304,17 +453,29 @@ const calculateRunStats = async (locations, startTime, pausedDuration) => {
     console.log(`Run is paused, keeping duration at ${validDuration.toFixed(1)}s`);
   } else {
     // Calculate duration in seconds
+    console.log(`Calculating duration: (${currentTime} - ${validStartTime} - ${validPausedDuration}) / 1000`);
     const duration = (currentTime - validStartTime - validPausedDuration) / 1000;
     
     // Ensure duration is positive
     validDuration = duration > 0 ? duration : 0.1;
+    console.log(`Calculated duration: ${validDuration}s from start time ${new Date(validStartTime).toISOString()}`);
   }
   
   // Calculate pace (minutes per km)
   let pace = 0;
-  if (totalDistance > 0) {
-    const paceInSeconds = validDuration / (totalDistance / 1000);
-    pace = paceInSeconds / 60; // Convert to minutes
+  if (totalDistance > 0.05) { // Only calculate pace if distance is significant (at least 50 meters)
+    // Convert duration to minutes and divide by distance in km
+    const durationInMinutes = validDuration / 60; // Convert seconds to minutes
+    pace = durationInMinutes / totalDistance; // This gives minutes per km
+    
+    // Add a sanity check for pace (between 2-30 min/km is reasonable)
+    if (pace < 2 || pace > 30) {
+      // Default to a reasonable pace for very short distances
+      pace = 10; // 10 min/km as a default
+    }
+  } else {
+    // For very short distances, use a default reasonable pace
+    pace = 10; // 10 min/km as a default
   }
   
   console.log(`Updated stats - Distance: ${totalDistance.toFixed(2)}km, Duration: ${validDuration.toFixed(1)}s, Pace: ${pace.toFixed(2)}`);

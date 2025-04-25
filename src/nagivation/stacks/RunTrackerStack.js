@@ -1,6 +1,7 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import RunTrackerScreen from '../../screens/RunTrackerScreen';
+import RunConfirmationScreen from '../../screens/RunConfirmationScreen';
 
 const Stack = createStackNavigator();
 
@@ -30,6 +31,7 @@ export default function RunTrackerStack() {
       }}
     >
       <Stack.Screen name="RunTrackerMain" component={RunTrackerScreen} />
+      <Stack.Screen name="RunConfirmation" component={RunConfirmationScreen} />
     </Stack.Navigator>
   );
 } 

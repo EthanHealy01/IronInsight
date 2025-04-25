@@ -51,6 +51,8 @@ async function createTablesIfNotExist(database) {
       start_time TEXT,
       end_time TEXT,
       route_data TEXT,
+      time_at_100m INTEGER,
+      time_at_500m INTEGER,
       time_at_1k INTEGER,
       time_at_5k INTEGER,
       time_at_10k INTEGER,

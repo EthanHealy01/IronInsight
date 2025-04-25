@@ -26,112 +26,122 @@ export async function saveRun(run) {
       throw new Error("Run object is null or undefined");
     }
     
-    // Get user info, if available
-    let userId = null;
-    try {
-      console.log("🔍 DB: Attempting to get user info");
-      const userInfo = await getUserInfo();
-      userId = userInfo?.id || null;
-      console.log("🔍 DB: User ID retrieved:", userId);
-    } catch (userError) {
-      console.error("🔍 DB: Error getting user info:", userError);
-      // Continue with null userId
-    }
-    
-    const now = new Date().toISOString();
-    
-    console.log('🔍 DB: Run data received, inspecting properties:');
-    
-    // Check each expected property and log its value and type
-    const properties = ['name', 'distance', 'duration', 'pace', 'startTime', 
-      'endTime', 'routeData', 'splitTimes', 'calories'];
-    
-    properties.forEach(prop => {
-      console.log(`🔍 DB: run.${prop}:`, run[prop], 
-        `type: ${typeof run[prop]}`, 
-        `value: ${JSON.stringify(run[prop])}`);
-    });
-    
-    // Check if the db instance is ready
+    // Ensure database is ready
     console.log("🔍 DB: Checking database instance");
     if (!db) {
       console.error("🔍 DB: Database instance is not initialized");
       throw new Error("Database is not initialized");
     }
     
-    // Ensure required fields have valid values (not null)
-    console.log("🔍 DB: Sanitizing run data");
-    const sanitizedRun = {
-      ...run,
-      name: run.name || `Run on ${new Date().toLocaleDateString()}`,
-      distance: typeof run.distance === 'number' ? run.distance : 0,
-      duration: typeof run.duration === 'number' ? Math.floor(run.duration) : 0,
-      pace: typeof run.pace === 'number' ? run.pace : 0,
-      startTime: run.startTime || now,
-      endTime: run.endTime || now,
-      routeData: run.routeData || '[]'
-    };
+    // Begin transaction
+    console.log("🔍 DB: Beginning transaction");
+    await db.execAsync('BEGIN TRANSACTION;');
     
-    // Log the sanitized values
-    console.log("🔍 DB: After sanitization:");
-    properties.forEach(prop => {
-      console.log(`🔍 DB: sanitizedRun.${prop}:`, sanitizedRun[prop], 
-        `type: ${typeof sanitizedRun[prop]}`);
-    });
-    
-    // Extract split times from the run object
-    console.log("🔍 DB: Extracting split times");
-    
-    // Helper function to validate time values
-    const validateTimeValue = (time) => {
-      // Check if the value is a valid number (not null, undefined, Infinity, or NaN)
-      if (time === null || time === undefined) return null;
-      if (!Number.isFinite(time)) return null; // Handles Infinity and NaN
-      return time;
-    };
-    
-    const timeAt1k = validateTimeValue(sanitizedRun.splitTimes?.['1k']);
-    const timeAt5k = validateTimeValue(sanitizedRun.splitTimes?.['5k']);
-    const timeAt10k = validateTimeValue(sanitizedRun.splitTimes?.['10k']);
-    const timeAtHalfMarathon = validateTimeValue(sanitizedRun.splitTimes?.['halfMarathon']);
-    const timeAtMarathon = validateTimeValue(sanitizedRun.splitTimes?.['marathon']);
-    
-    console.log("🔍 DB: Split times extracted and validated:", {
-      '1k': timeAt1k,
-      '5k': timeAt5k,
-      '10k': timeAt10k,
-      'halfMarathon': timeAtHalfMarathon,
-      'marathon': timeAtMarathon
-    });
-    
-    // Construct the SQL parameters array
-    const params = [
-      userId,
-      sanitizedRun.name,
-      sanitizedRun.distance,
-      sanitizedRun.duration,
-      sanitizedRun.pace,
-      sanitizedRun.startTime,
-      sanitizedRun.endTime,
-      sanitizedRun.routeData,
-      timeAt1k,
-      timeAt5k,
-      timeAt10k,
-      timeAtHalfMarathon,
-      timeAtMarathon,
-      sanitizedRun.calories || 0,
-      now,
-      now
-    ];
-    
-    console.log("🔍 DB: SQL parameters prepared:", params.map((p, i) => 
-      `param[${i}]: ${p} (${typeof p})`).join('\n'));
-    
-    console.log("🔍 DB: Executing SQL INSERT statement");
-    
-    // Save the run to the database
     try {
-      await db.execAsync(
+      // Get user info, if available
+      let userId = null;
+      try {
+        console.log("🔍 DB: Attempting to get user info");
+        const userInfo = await getUserInfo();
+        userId = userInfo?.id || null;
+        console.log("🔍 DB: User ID retrieved:", userId);
+      } catch (userError) {
+        console.error("🔍 DB: Error getting user info:", userError);
+        // Continue with null userId
+      }
+      
+      const now = new Date().toISOString();
+      
+      console.log('🔍 DB: Run data received, inspecting properties:');
+      
+      // Check each expected property and log its value and type
+      const properties = ['name', 'distance', 'duration', 'pace', 'startTime', 
+        'endTime', 'routeData', 'splitTimes', 'calories'];
+      
+      properties.forEach(prop => {
+        console.log(`🔍 DB: run.${prop}:`, run[prop], 
+          `type: ${typeof run[prop]}`, 
+          `value: ${JSON.stringify(run[prop])}`);
+      });
+      
+      // Ensure required fields have valid values (not null)
+      console.log("🔍 DB: Sanitizing run data");
+      const sanitizedRun = {
+        ...run,
+        name: run.name || `Run on ${new Date().toLocaleDateString()}`,
+        distance: typeof run.distance === 'number' ? run.distance : 0,
+        duration: typeof run.duration === 'number' ? Math.floor(run.duration) : 0,
+        pace: typeof run.pace === 'number' ? run.pace : 0,
+        startTime: run.startTime || now,
+        endTime: run.endTime || now,
+        routeData: run.routeData || '[]'
+      };
+      
+      // Log the sanitized values
+      console.log("🔍 DB: After sanitization:");
+      properties.forEach(prop => {
+        console.log(`🔍 DB: sanitizedRun.${prop}:`, sanitizedRun[prop], 
+          `type: ${typeof sanitizedRun[prop]}`);
+      });
+      
+      // Extract split times from the run object
+      console.log("🔍 DB: Extracting split times");
+      
+      // Helper function to validate time values
+      const validateTimeValue = (time) => {
+        // Check if the value is a valid number (not null, undefined, Infinity, or NaN)
+        if (time === null || time === undefined) return null;
+        if (!Number.isFinite(time)) return null; // Handles Infinity and NaN
+        return time;
+      };
+      
+      const timeAt100m = validateTimeValue(sanitizedRun.splitTimes?.['100m']);
+      const timeAt500m = validateTimeValue(sanitizedRun.splitTimes?.['500m']);
+      const timeAt1k = validateTimeValue(sanitizedRun.splitTimes?.['1k']);
+      const timeAt5k = validateTimeValue(sanitizedRun.splitTimes?.['5k']);
+      const timeAt10k = validateTimeValue(sanitizedRun.splitTimes?.['10k']);
+      const timeAtHalfMarathon = validateTimeValue(sanitizedRun.splitTimes?.['halfMarathon']);
+      const timeAtMarathon = validateTimeValue(sanitizedRun.splitTimes?.['marathon']);
+      
+      console.log("🔍 DB: Split times extracted and validated:", {
+        '100m': timeAt100m,
+        '500m': timeAt500m,
+        '1k': timeAt1k,
+        '5k': timeAt5k,
+        '10k': timeAt10k,
+        'halfMarathon': timeAtHalfMarathon,
+        'marathon': timeAtMarathon
+      });
+      
+      // Construct the SQL parameters array
+      const params = [
+        userId,
+        sanitizedRun.name,
+        sanitizedRun.distance,
+        sanitizedRun.duration,
+        sanitizedRun.pace,
+        sanitizedRun.startTime,
+        sanitizedRun.endTime,
+        sanitizedRun.routeData,
+        timeAt100m,
+        timeAt500m,
+        timeAt1k,
+        timeAt5k,
+        timeAt10k,
+        timeAtHalfMarathon,
+        timeAtMarathon,
+        sanitizedRun.calories || 0,
+        now,
+        now
+      ];
+      
+      console.log("🔍 DB: SQL parameters prepared:", params.map((p, i) => 
+        `param[${i}]: ${p} (${typeof p})`).join('\n'));
+      
+      console.log("🔍 DB: Executing SQL INSERT statement");
+      
+      // Use runAsync instead of execAsync for parameterized INSERT statements
+      await db.runAsync(
         `INSERT INTO runs (
           user_id, 
           name, 
@@ -141,6 +151,8 @@ export async function saveRun(run) {
           start_time, 
           end_time, 
           route_data,
+          time_at_100m,
+          time_at_500m,
           time_at_1k,
           time_at_5k,
           time_at_10k,
@@ -149,45 +161,65 @@ export async function saveRun(run) {
           calories,
           created_at, 
           updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         params
       );
       console.log("🔍 DB: SQL INSERT executed successfully");
-    } catch (sqlError) {
-      console.error("🔍 DB: Error executing SQL INSERT:", sqlError);
-      console.error("🔍 DB: SQL Error stack:", sqlError.stack);
-      throw sqlError;
-    }
-    
-    // Get the inserted ID using a separate query
-    console.log("🔍 DB: Getting last inserted ID");
-    let insertedId = null;
-    try {
+      
+      // Get the inserted ID using a separate query
+      console.log("🔍 DB: Getting last inserted ID");
+      let insertedId = null;
+      
       const lastInsertIdResult = await db.getAllAsync('SELECT last_insert_rowid() as id');
       insertedId = lastInsertIdResult[0]?.id;
       console.log("🔍 DB: Last insert ID result:", lastInsertIdResult);
       console.log("🔍 DB: Inserted ID:", insertedId);
-    } catch (idError) {
-      console.error("🔍 DB: Error getting last insert ID:", idError);
-      throw idError;
-    }
-    
-    // Verify the run was actually saved
-    try {
-      console.log("🔍 DB: Verifying run was saved with ID:", insertedId);
-      const savedRun = await db.getAllAsync('SELECT * FROM runs WHERE id = ?', [insertedId]);
-      console.log("🔍 DB: Verification result:", savedRun.length > 0 ? "Found" : "Not found");
-      if (savedRun.length > 0) {
-        console.log("🔍 DB: Saved run data:", JSON.stringify(savedRun[0]));
+      
+      // Commit the transaction
+      console.log("🔍 DB: Committing transaction");
+      await db.execAsync('COMMIT;');
+      
+      // Verify the run was actually saved
+      try {
+        console.log("🔍 DB: Verifying run was saved with ID:", insertedId);
+        
+        // Use getAllAsync with proper parameter binding
+        const savedRun = await db.getAllAsync(
+          'SELECT * FROM runs WHERE id = ?', 
+          [insertedId]
+        );
+        
+        console.log("🔍 DB: Verification result:", savedRun.length > 0 ? "Found" : "Not found");
+        if (savedRun.length > 0) {
+          console.log("🔍 DB: Saved run data:", JSON.stringify(savedRun[0]));
+          
+          // Attempt a forced sync to ensure data is committed
+          try {
+            await db.execAsync('PRAGMA synchronous = FULL;');
+            await db.execAsync('PRAGMA journal_mode = DELETE;');
+          } catch (syncError) {
+            console.log("🔍 DB: Sync attempt completed");
+          }
+        }
+      } catch (verifyError) {
+        console.error("🔍 DB: Error verifying saved run:", verifyError);
+        // Don't throw - this is just for logging
       }
-    } catch (verifyError) {
-      console.error("🔍 DB: Error verifying saved run:", verifyError);
-      // Don't throw - this is just for logging
+      
+      console.log('🔍 DB: Run saved successfully with ID:', insertedId);
+      
+      return insertedId;
+    } catch (innerError) {
+      // If anything goes wrong, roll back the transaction
+      console.error('🔍 DB: Error during transaction, rolling back:', innerError);
+      try {
+        await db.execAsync('ROLLBACK;');
+        console.log('🔍 DB: Transaction rolled back');
+      } catch (rollbackError) {
+        console.error('🔍 DB: Error during rollback:', rollbackError);
+      }
+      throw innerError;
     }
-    
-    console.log('🔍 DB: Run saved successfully with ID:', insertedId);
-    
-    return insertedId;
   } catch (error) {
     console.error('🔍 DB: Error saving run:', error);
     console.error('🔍 DB: Error stack:', error.stack);
@@ -212,6 +244,8 @@ export async function getAllRuns() {
         start_time, 
         end_time,
         route_data,
+        time_at_100m,
+        time_at_500m,
         time_at_1k,
         time_at_5k,
         time_at_10k,
@@ -236,6 +270,8 @@ export async function getAllRuns() {
       endTime: run.end_time,
       routeData: run.route_data ? JSON.parse(run.route_data) : [],
       splitTimes: {
+        '100m': run.time_at_100m,
+        '500m': run.time_at_500m,
         '1k': run.time_at_1k,
         '5k': run.time_at_5k,
         '10k': run.time_at_10k,
@@ -270,6 +306,8 @@ export async function getRunById(id) {
         start_time, 
         end_time,
         route_data,
+        time_at_100m,
+        time_at_500m,
         time_at_1k,
         time_at_5k,
         time_at_10k,
@@ -300,6 +338,8 @@ export async function getRunById(id) {
       endTime: run.end_time,
       routeData: run.route_data ? JSON.parse(run.route_data) : [],
       splitTimes: {
+        '100m': run.time_at_100m,
+        '500m': run.time_at_500m,
         '1k': run.time_at_1k,
         '5k': run.time_at_5k,
         '10k': run.time_at_10k,
@@ -332,6 +372,14 @@ export async function updateRun(id, updates) {
     }
     
     // Extract split times from the updates object
+    const timeAt100m = updates.splitTimes?.['100m'] !== undefined 
+      ? updates.splitTimes['100m'] 
+      : run.splitTimes['100m'];
+      
+    const timeAt500m = updates.splitTimes?.['500m'] !== undefined 
+      ? updates.splitTimes['500m'] 
+      : run.splitTimes['500m'];
+      
     const timeAt1k = updates.splitTimes?.['1k'] !== undefined 
       ? updates.splitTimes['1k'] 
       : run.splitTimes['1k'];
@@ -352,8 +400,29 @@ export async function updateRun(id, updates) {
       ? updates.splitTimes['marathon'] 
       : run.splitTimes['marathon'];
     
-    // Update the run in the database
-    await db.execAsync(
+    // Create params array for UPDATE
+    const params = [
+      updates.name || run.name,
+      updates.distance !== undefined ? updates.distance : run.distance,
+      updates.duration !== undefined ? updates.duration : run.duration,
+      updates.pace !== undefined ? updates.pace : run.pace,
+      updates.startTime || run.startTime,
+      updates.endTime || run.endTime,
+      updates.routeData ? JSON.stringify(updates.routeData) : run.routeData.length > 0 ? JSON.stringify(run.routeData) : null,
+      timeAt100m,
+      timeAt500m,
+      timeAt1k,
+      timeAt5k,
+      timeAt10k,
+      timeAtHalfMarathon,
+      timeAtMarathon,
+      updates.calories !== undefined ? updates.calories : run.calories,
+      now,
+      id
+    ];
+    
+    // Update the run in the database - use runAsync instead of execAsync
+    await db.runAsync(
       `UPDATE runs SET
         name = ?,
         distance = ?,
@@ -362,6 +431,8 @@ export async function updateRun(id, updates) {
         start_time = ?,
         end_time = ?,
         route_data = ?,
+        time_at_100m = ?,
+        time_at_500m = ?,
         time_at_1k = ?,
         time_at_5k = ?,
         time_at_10k = ?,
@@ -370,23 +441,7 @@ export async function updateRun(id, updates) {
         calories = ?,
         updated_at = ?
       WHERE id = ?`,
-      [
-        updates.name || run.name,
-        updates.distance !== undefined ? updates.distance : run.distance,
-        updates.duration !== undefined ? updates.duration : run.duration,
-        updates.pace !== undefined ? updates.pace : run.pace,
-        updates.startTime || run.startTime,
-        updates.endTime || run.endTime,
-        updates.routeData ? JSON.stringify(updates.routeData) : run.routeData.length > 0 ? JSON.stringify(run.routeData) : null,
-        timeAt1k,
-        timeAt5k,
-        timeAt10k,
-        timeAtHalfMarathon,
-        timeAtMarathon,
-        updates.calories !== undefined ? updates.calories : run.calories,
-        now,
-        id
-      ]
+      params
     );
     
     return true;
@@ -403,7 +458,8 @@ export async function updateRun(id, updates) {
  */
 export async function deleteRun(id) {
   try {
-    await db.execAsync('DELETE FROM runs WHERE id = ?', [id]);
+    // Use runAsync for parameterized queries
+    await db.runAsync('DELETE FROM runs WHERE id = ?', [id]);
     return true;
   } catch (error) {
     console.error('Error deleting run:', error);
@@ -426,6 +482,8 @@ export function calculateSplitTimes(coordinates, totalDistance) {
   
   // Define key distances in km
   const keyDistances = {
+    '100m': 0.1,
+    '500m': 0.5,
     '1k': 1,
     '5k': 5,
     '10k': 10,
@@ -563,6 +621,31 @@ export async function verifyRunsTable() {
   } catch (error) {
     console.error("🔍 DB: Error verifying runs table:", error);
     console.error("🔍 DB: Error stack:", error.stack);
+    return false;
+  }
+}
+
+/**
+ * Check database integrity
+ */
+export async function checkDatabaseIntegrity() {
+  try {
+    console.log("🔍 DB: Running integrity check on database");
+    
+    // Run SQLite integrity check
+    const result = await db.getAllAsync('PRAGMA integrity_check;');
+    console.log("🔍 DB: Integrity check result:", result);
+    
+    // Check foreign key constraints
+    const fkResult = await db.getAllAsync('PRAGMA foreign_key_check;');
+    console.log("🔍 DB: Foreign key check result:", fkResult);
+    
+    // Force immediate disk synchronization
+    await db.execAsync('PRAGMA wal_checkpoint(FULL);');
+    
+    return result[0].integrity_check === 'ok';
+  } catch (error) {
+    console.error("🔍 DB: Error checking database integrity:", error);
     return false;
   }
 } 
