@@ -18,7 +18,9 @@ import {
   faRotate, 
   faArrowDown,
   faChevronDown,
-  faTimes
+  faTimes,
+  faList,
+  faRunning
 } from '@fortawesome/free-solid-svg-icons';
 import { db } from '../database/db';
 import { styles as globalStylesFunc } from '../theme/styles';
@@ -1028,9 +1030,28 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       <ScrollView style={[globalStyles.container]}>
         <View style={styles.header}>
           <View style={styles.profileSection}>
-            <Text style={[styles.title, globalStyles.fontWeightBold]}>General Analytics</Text>
+            <Text style={[styles.title, globalStyles.fontWeightBold, {marginBottom: 12}]}>General Analytics</Text>
           </View>
         </View>
+
+      {/* History buttons */}
+      <View style={styles.historyButtonsContainer}>
+        <TouchableOpacity
+          style={[globalStyles.primaryButton, {flex: 1, marginRight:5, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}]}
+          onPress={() => setWorkoutHistoryModalVisible(true)}
+        >
+          <Text style={{marginRight: 10, fontWeight: 'bold', color: '#FFFFFF'}}>View Workout History</Text>
+          <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[globalStyles.primaryButton, {flex: 1, marginLeft:5, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}]}
+          onPress={() => setRunHistoryModalVisible(true)}
+        >
+          <Text style={{marginRight: 10, fontWeight: 'bold', color: '#FFFFFF'}}>View Run History</Text>
+          <FontAwesomeIcon icon={faRunning} size={16} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
 
         {/* Gym Visits Section */}
         <View style={[styles.card, globalStyles.cardBackgroundColor]}>
@@ -1217,7 +1238,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 15,
   },
   profileSection: {
     flexDirection: 'row',
@@ -1555,6 +1575,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  historyButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom:20
+  },
+
+  
 });
 
 export default AdvancedAnalytics; 

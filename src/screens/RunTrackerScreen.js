@@ -36,13 +36,11 @@ import { saveRun, verifyRunsTable, checkDatabaseIntegrity, calculateSplitTimes }
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function RunTrackerScreen() {
-  const [isTracking, setIsTracking]     = useState(false);
-  const [isPaused, setIsPaused]         = useState(false);
+  const [isTracking, setIsTracking] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
 
   const trackingRef = useRef(isTracking);
-  const pausedRef   = useRef(isPaused);
-  const routeRef    = useRef(routeCoordinates);
+  const routeRef = useRef(routeCoordinates);
 
   const isDarkMode = useColorScheme() === 'dark';
   const appStyles = globalStyles();
@@ -59,11 +57,9 @@ export default function RunTrackerScreen() {
   const mapRef = useRef(null);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
-  const pausedTimeRef = useRef(0);
   const appState = useRef(AppState.currentState);
   const locationSubscription = useRef(null);
-  const blockRefreshUntilRef = useRef(0); // Use a ref instead of window
-  const preserveIntervalRef = useRef(null); // Ref for the preserve interval
+  const blockRefreshUntilRef = useRef(0);
 
   // Initialize the background task on component mount
   useEffect(() => {
@@ -89,10 +85,7 @@ export default function RunTrackerScreen() {
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status === 'granted') {
-        // Start watching location changes right away
-        watchLocationChanges();
-        
-        // Get one-time location to initialize the map
+        // Only get the initial location, don't start watching yet
         const location = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Highest
         });
@@ -150,7 +143,6 @@ export default function RunTrackerScreen() {
     // Update UI state based on stored state
     if (activeRun) {
       setIsTracking(activeRun.isTracking || false);
-      setIsPaused(activeRun.isPaused || false);
       
       // Restore the preserved distance if returning from a paused state
       if (activeRun.preservedDistance !== undefined) {
@@ -166,7 +158,7 @@ export default function RunTrackerScreen() {
     
     if (wasUpdated) {
       // Restart the timer for UI updates without resetting the clock
-      if (isTracking && !isPaused) {
+      if (isTracking) {
         // Clear any existing timers
         if (timerRef.current) {
           clearInterval(timerRef.current);
@@ -175,8 +167,8 @@ export default function RunTrackerScreen() {
       }
     }
     
-    // If we're tracking but not paused, restart the display timer
-    if (activeRun && activeRun.isTracking && !activeRun.isPaused) {
+    // If we're tracking, restart the display timer
+    if (activeRun && activeRun.isTracking) {
       if (displayTimerRef.current) {
         clearInterval(displayTimerRef.current);
         displayTimerRef.current = null;
@@ -229,55 +221,48 @@ export default function RunTrackerScreen() {
         return;
       }
       
-      // Don't refresh if we're in a paused state
+      // Don't refresh if we don't have an active run
       const activeRunString = await AsyncStorage.getItem(ACTIVE_RUN_KEY);
       if (!activeRunString) {
         console.log("No active run found during refresh");
         return;
       }
       
-      // Parse active run data and check state
+      // Parse active run data
       const activeRun = JSON.parse(activeRunString);
-      const runIsPaused = activeRun.isPaused === true;
-      
-      // Update UI state if needed to match storage
-      if (runIsPaused !== isPaused) {
-        console.log(`Syncing UI pause state (${isPaused}) with storage (${runIsPaused})`);
-        setIsPaused(runIsPaused);
-      }
-      
 
-      // Get current run path
-      const path = await getCurrentRunPath();
-      if (path && path.length > routeRef.current.length) {
-        console.log(`Refreshing route with ${path.length} coordinates`);
-        setRouteCoordinates([...path]);
-        
-        // Update current location from the latest point
-        const latestPoint = path[path.length - 1];
-        if (latestPoint && latestPoint.latitude && latestPoint.longitude) {
-          setCurrentLocation(latestPoint);
+      // Only get route path if we're tracking
+      if (activeRun.isTracking) {
+        // Get current run path
+        const path = await getCurrentRunPath();
+        if (path && path.length > routeRef.current.length) {
+          console.log(`Refreshing route with ${path.length} coordinates`);
+          setRouteCoordinates([...path]);
           
-          // Center map on the latest location if tracking and not paused
-          if (mapRef.current && activeRun.isTracking && !runIsPaused) {
-            mapRef.current.animateToRegion({
-              latitude: latestPoint.latitude,
-              longitude: latestPoint.longitude,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            }, 500);
+          // Update current location from the latest point
+          const latestPoint = path[path.length - 1];
+          if (latestPoint && latestPoint.latitude && latestPoint.longitude) {
+            setCurrentLocation(latestPoint);
+            
+            // Center map on the latest location if tracking
+            if (mapRef.current && activeRun.isTracking) {
+              mapRef.current.animateToRegion({
+                latitude: latestPoint.latitude,
+                longitude: latestPoint.longitude,
+                latitudeDelta: 0.005,
+                longitudeDelta: 0.005,
+              }, 500);
+            }
           }
+        } else {
+          console.log("No path data available for refresh");
         }
-      } else {
-        console.log("No path data available for refresh");
-      }
-      
-      // Get current stats
-      const stats = await getCurrentRunStats();
-      console.log("Refreshed stats:", stats);
-      
-      // Update all stats from storage if not paused
-      if (!runIsPaused) {
+        
+        // Get current stats
+        const stats = await getCurrentRunStats();
+        console.log("Refreshed stats:", stats);
+        
+        // Update all stats from storage
         setDistance(stats.distance || 0);
         setDuration(stats.duration || 0);
         
@@ -298,9 +283,9 @@ export default function RunTrackerScreen() {
           // Default display when pace is not available or valid
           setPace('0:00');
         }
-      }
 
-      console.log('Refreshed run data from storage:', stats);
+        console.log('Refreshed run data from storage:', stats);
+      }
     } catch (error) {
       console.error('Error refreshing run data:', error);
     }
@@ -318,15 +303,13 @@ export default function RunTrackerScreen() {
     
     // First get current stats to ensure we have the right duration
     getCurrentRunStats().then(stats => {
-      // Get current run data to check paused state
+      // Get current run data
       AsyncStorage.getItem(ACTIVE_RUN_KEY).then(runDataString => {
         const runData = runDataString ? JSON.parse(runDataString) : null;
-        const currentIsPaused = runData?.isPaused === true;
         
         // Initialize with the right values
         if (resetTimer) {
           startTimeRef.current = new Date().getTime();
-          pausedTimeRef.current = 0;
           setDisplayDuration(0);
         } else if (stats && stats.duration > 0) {
           // When not resetting (like on restart), use the persisted duration
@@ -337,56 +320,36 @@ export default function RunTrackerScreen() {
         // Run timer more frequently for smoother updates
         timerRef.current = setInterval(async () => {
           try {
-            // Get latest run data to check if paused state changed
+            // Get latest run data
             const activeRunString = await AsyncStorage.getItem(ACTIVE_RUN_KEY);
             const activeRun = activeRunString ? JSON.parse(activeRunString) : null;
             
-            // Skip entirely if paused
-            if (activeRun?.isPaused) {
-              // Update UI paused state if it's different
-              if (!isPaused) {
-                console.log("Timer detected pause state change, updating UI");
-                setIsPaused(true);
-              }
-              return;
-            } else if (isPaused && activeRun && !activeRun.isPaused) {
-              // If UI thinks we're paused but storage says we're not, sync it
-              console.log("Timer detected resume state change, updating UI");
-              setIsPaused(false);
-            }
+            if (!activeRun || !activeRun.isTracking) return;
             
-            // Skip if freeze or just resumed
-            if (activeRun?.resumeFreeze) {
-              console.log("Timer update skipped due to resume protection");
-              return;
-            }
-            
-            // Get latest stats and update UI if not paused
+            // Get latest stats and update UI
             const latestStats = await getCurrentRunStats();
             
-            if (!isPaused) {
-              // Update displayed stats if not paused
-              setDistance(latestStats.distance || 0);
-              
-              // Update duration from stats
-              if (latestStats.duration && latestStats.duration > 0) {
-                setDuration(latestStats.duration);
-              }
-              
-              // Format pace
-              if (latestStats.pace && latestStats.pace > 0) {
-                const validPace = latestStats.pace < 2 || latestStats.pace > 30 ? 10 : latestStats.pace;
-                const paceMinutes = Math.floor(validPace);
-                const paceSeconds = Math.floor((validPace - paceMinutes) * 60);
-                setPace(`${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}`);
-              }
-              
-              // Get current path and update map if needed
-              const path = await getCurrentRunPath();
-              if (path && path.length > routeRef.current.length) {
-                // only adopt the new, longer array
-                setRouteCoordinates([...path]);
-              }
+            // Update displayed stats
+            setDistance(latestStats.distance || 0);
+            
+            // Update duration from stats
+            if (latestStats.duration && latestStats.duration > 0) {
+              setDuration(latestStats.duration);
+            }
+            
+            // Format pace
+            if (latestStats.pace && latestStats.pace > 0) {
+              const validPace = latestStats.pace < 2 || latestStats.pace > 30 ? 10 : latestStats.pace;
+              const paceMinutes = Math.floor(validPace);
+              const paceSeconds = Math.floor((validPace - paceMinutes) * 60);
+              setPace(`${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}`);
+            }
+            
+            // Get current path and update map if needed
+            const path = await getCurrentRunPath();
+            if (path && path.length > routeRef.current.length) {
+              // only adopt the new, longer array
+              setRouteCoordinates([...path]);
             }
           } catch (error) {
             console.error("Error in timer update:", error);
@@ -415,19 +378,17 @@ export default function RunTrackerScreen() {
           const runData = JSON.parse(runDataString);
           isTracking = runData.isTracking;
           console.log('Using stored tracking state after restart:', isTracking);
-          
-          // Also update the paused state
-          if (runData.isPaused !== undefined) {
-            setIsPaused(runData.isPaused);
-            console.log('Restored paused state:', runData.isPaused);
-          }
         }
       }
       
       setIsTracking(isTracking);
+      trackingRef.current = isTracking;
       
       if (isTracking) {
         console.log('Detected active run - restoring state after possible restart');
+        
+        // Start watching location changes for an active run
+        watchLocationChanges();
         
         // Force a stats refresh to ensure we have current data
         const stats = await getCurrentRunStats();
@@ -443,14 +404,8 @@ export default function RunTrackerScreen() {
         // Start timers for continuous updates
         startPeriodicUpdates();
         
-        // If the run wasn't paused, restart the display timer
-        const runDataString = await AsyncStorage.getItem(ACTIVE_RUN_KEY);
-        if (runDataString) {
-          const runData = JSON.parse(runDataString);
-          if (!runData.isPaused) {
-            startDisplayTimer(); // Will pick up the current duration
-          }
-        }
+        // Restart the display timer
+        startDisplayTimer();
       }
     } catch (error) {
       console.log('Tracking status check error:', error);
@@ -467,9 +422,6 @@ export default function RunTrackerScreen() {
     
     // We'll use startDirectTimer for UI updates which also refreshes from storage
     startDirectTimer(false);
-    
-    // Watch location for immediate UI updates
-    watchLocationChanges();
   };
 
   // Watch for location changes while the app is in the foreground
@@ -489,17 +441,22 @@ export default function RunTrackerScreen() {
           altitude:   location.coords.altitude
         };
     
-        // 1) UI Polyline
-        setRouteCoordinates(rc => [...rc, newPoint]);
-    
-        // 2) Persist it for getCurrentRunPath()
-        const stored = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
-        const arr = stored ? JSON.parse(stored) : [];
-        await AsyncStorage.setItem(RUN_LOCATIONS_KEY,
-                                   JSON.stringify([...arr, newPoint]));
-    
-        // 3) Mirror to the map
+        // Update current location regardless of tracking state
         setCurrentLocation(newPoint);
+        
+        // Only add to route and persist if we're actually tracking
+        if (trackingRef.current) {
+          // 1) UI Polyline
+          setRouteCoordinates(rc => [...rc, newPoint]);
+      
+          // 2) Persist it for getCurrentRunPath()
+          const stored = await AsyncStorage.getItem(RUN_LOCATIONS_KEY);
+          const arr = stored ? JSON.parse(stored) : [];
+          await AsyncStorage.setItem(RUN_LOCATIONS_KEY,
+                                     JSON.stringify([...arr, newPoint]));
+        }
+        
+        // Always update the map center to follow user
         mapRef.current?.animateToRegion({
           latitude: newPoint.latitude,
           longitude: newPoint.longitude,
@@ -508,7 +465,6 @@ export default function RunTrackerScreen() {
         }, 500);
       }
     );
-    
   };
 
   // Start a simple display timer that runs independently
@@ -532,139 +488,34 @@ export default function RunTrackerScreen() {
       
       // Start counting at 1-second intervals
       displayTimerRef.current = setInterval(() => {
-        if (!isPaused) {
-          setDisplayDuration(prev => {
-            const newDuration = prev + 1;
-      
-            // recompute pace on the fly
-            if (distance > 0) {
-              const minutesPerKm = (newDuration / 60) / distance;
-              const validPace    = (minutesPerKm < 2 || minutesPerKm > 30) ? 10 : minutesPerKm;
-              const m            = Math.floor(validPace);
-              const s            = Math.floor((validPace - m) * 60).toString().padStart(2, '0');
-              setPace(`${m}:${s}`);
-            }
-      
-            // keep your stored stats in sync
-            getCurrentRunStats().then(cs => {
-              AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify({
-                ...cs,
-                duration: newDuration
-              }));
-            });
-      
-            return newDuration;
+        setDisplayDuration(prev => {
+          const newDuration = prev + 1;
+    
+          // recompute pace on the fly
+          if (distance > 0) {
+            const minutesPerKm = (newDuration / 60) / distance;
+            const validPace    = (minutesPerKm < 2 || minutesPerKm > 30) ? 10 : minutesPerKm;
+            const m            = Math.floor(validPace);
+            const s            = Math.floor((validPace - m) * 60).toString().padStart(2, '0');
+            setPace(`${m}:${s}`);
+          }
+    
+          // keep your stored stats in sync
+          getCurrentRunStats().then(cs => {
+            AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify({
+              ...cs,
+              duration: newDuration
+            }));
           });
-        }
+    
+          return newDuration;
+        });
       }, 1000);
     }).catch(error => {
       console.error("Error starting display timer:", error);
       // Fallback to basic timer
       setDisplayDuration(0);
       displayTimerRef.current = setInterval(() => {
-        if (!isPaused) {
-          setDisplayDuration(prev => {
-            const newValue = prev + 1;
-            // Also update stats to keep everything in sync
-            getCurrentRunStats().then(currentStats => {
-              const updatedStats = {
-                ...currentStats,
-                duration: newValue
-              };
-              AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(updatedStats));
-            }).catch(err => console.log("Error updating duration in stats:", err));
-            
-            return newValue;
-          });
-        }
-      }, 1000);
-    });
-  };
-  
-  // Pause the display timer
-  const pauseDisplayTimer = () => {
-    console.log("Pausing display timer at", displayDuration, "seconds");
-    
-    // Clear the interval when paused to completely stop the timer
-    if (displayTimerRef.current) {
-      clearInterval(displayTimerRef.current);
-      displayTimerRef.current = null;
-    }
-  };
-  
-  // Handle pausing the run
-  const pauseRun = async () => {
-    try {
-      console.log("PAUSE BUTTON PRESSED - Current isPaused state:", isPaused);
-      
-      // Set UI state first for immediate feedback
-      setIsPaused(true);
-      
-      // Pause the display timer immediately
-      pauseDisplayTimer();
-      
-      // Get current timestamp when paused
-      const pauseStartTime = new Date().getTime();
-      
-      // Store the current route coordinates in state
-      // This is the key step - we explicitly save them to re-use when resuming
-      const currentRoute = [...routeCoordinates];
-      console.log(`Saving ${currentRoute.length} route coordinates at pause`);
-      
-      // Store the pause start time for use when resuming
-      const pauseResult = await pauseLocationTracking(pauseStartTime);
-      console.log("Pause result:", pauseResult);
-      
-      // Freeze all the current stats - distance, duration, pace
-      // and store them to keep them consistent during pause
-      const stats = await getCurrentRunStats();
-      console.log("Freezing stats during pause:", stats);
-      
-      // Force set stats values to ensure UI consistency
-      const updatedStats = {
-        ...stats,
-        isPaused: true,
-        pauseTime: pauseStartTime,
-        // Explicitly save current duration to ensure it doesn't change during pause
-        duration: displayDuration
-      };
-      
-      await AsyncStorage.setItem(RUN_STATS_KEY, JSON.stringify(updatedStats));
-      await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify({
-        isTracking: true,
-        isPaused: true,
-        pauseTime: pauseStartTime,
-        pausedDuration: displayDuration
-      }));
-      
-      console.log('Run paused at:', new Date(pauseStartTime).toLocaleDateString(), new Date(pauseStartTime).toLocaleTimeString());
-      
-      // Stop all timers to ensure nothing continues running during pause
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-        console.log("Cleared direct timer during pause");
-      }
-    } catch (error) {
-      console.error('Error pausing run:', error);
-      // Ensure we're still in paused state even if there's an error
-      setIsPaused(true);
-    }
-  };
-
-  // Resume the display timer
-  const resumeDisplayTimer = () => {
-    console.log("Resuming display timer from", displayDuration, "seconds");
-    
-    // Clear any existing timer to be safe
-    if (displayTimerRef.current) {
-      clearInterval(displayTimerRef.current);
-    }
-    
-    // Start a new timer that continues from the current display duration
-    displayTimerRef.current = setInterval(() => {
-      // Only increment when not paused
-      if (!isPaused) {
         setDisplayDuration(prev => {
           const newValue = prev + 1;
           // Also update stats to keep everything in sync
@@ -678,10 +529,10 @@ export default function RunTrackerScreen() {
           
           return newValue;
         });
-      }
-    }, 1000);
+      }, 1000);
+    });
   };
-
+  
   // Stop the display timer
   const stopDisplayTimer = () => {
     console.log("Stopping display timer");
@@ -702,7 +553,13 @@ export default function RunTrackerScreen() {
       
       if (success) {
         setIsTracking(true);
-        setIsPaused(false);
+        trackingRef.current = true;
+        
+        // Clear any existing route coordinates before starting
+        setRouteCoordinates([]);
+        
+        // Start watching location changes now that we're tracking
+        watchLocationChanges();
         
         // Explicitly set display duration to 0 for new runs
         setDisplayDuration(0);
@@ -716,7 +573,6 @@ export default function RunTrackerScreen() {
         // Save active run state
         await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify({
           isTracking: true,
-          isPaused: false,
           startTime: new Date().getTime()
         }));
         
@@ -724,120 +580,6 @@ export default function RunTrackerScreen() {
     } catch (error) {
       console.error('Error starting run:', error);
       Alert.alert('Error', 'Could not start run tracking.');
-    }
-  };
-
-  // Handle resuming the run
-  const resumeRun = async () => {
-    try {
-      console.log("RESUME BUTTON PRESSED - Current isPaused state:", isPaused);
-      
-      // Set UI state first for immediate feedback
-      setIsPaused(false);
-      
-      // Resume the display timer immediately
-      resumeDisplayTimer();
-      
-      // Calculate time spent paused and add it to pausedTimeRef
-      const resumeTime = new Date().getTime();
-      
-      // Get the current stats before resuming to preserve correct distance
-      const currentStats = await getCurrentRunStats();
-      const preservedDistance = currentStats.distance || distance;
-      console.log("Preserving distance at resume:", preservedDistance);
-      
-      // Resume with the current time to calculate pause duration
-      const resumeData = await resumeLocationTracking(resumeTime);
-      console.log("Resume data:", resumeData);
-      
-      // Update stored active run data with isTracking explicitly set to true
-      await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify({
-        isTracking: true,
-        isPaused: false,
-        resumeTime: resumeTime,
-        // Preserve important fields from resumeData
-        pausedDuration: resumeData?.pausedDuration || 0,
-        startTime: resumeData?.startTime,
-        preservedDistance: preservedDistance // Store the distance at pause time
-      }));
-      
-  // schedule a JS‐side clear of the freeze flags in 3 sec:
-  setTimeout(async () => {
-    const stored = await AsyncStorage.getItem(ACTIVE_RUN_KEY);
-    if (!stored) return;
-    const rd = JSON.parse(stored);
-    delete rd.resumeFreeze;
-    delete rd.resumeFreezeExpires;
-    delete rd.justResumed;
-    delete rd.resumeTime;
-    delete rd.resumeStats;
-    await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify(rd));
-    console.log("✅ JS cleared resumeFreeze/justResumed after 3sec");
-  }, 3000);
-
-      // Always restart direct timer for UI updates regardless of previous state
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      startDirectTimer(false);
-      
-      console.log('Run resumed at:', new Date(resumeTime).toLocaleDateString(), new Date(resumeTime).toLocaleTimeString());
-      console.log("Total paused time:", resumeData?.pausedDuration / 1000, "seconds");
-  
-      
-      // Force a refresh after the resume freeze expires
-      setTimeout(async () => {
-        try {
-          console.log("Post-resume refresh timeout triggered");
-          const stats = await getCurrentRunStats();
-          setDistance(stats.distance || 0);
-          setDuration(stats.duration || 0);
-          if (stats.pace && stats.pace > 0) {
-            const validPace = stats.pace < 2 || stats.pace > 30 ? 10 : stats.pace;
-            const paceMinutes = Math.floor(validPace);
-            const paceSeconds = Math.floor((validPace - paceMinutes) * 60);
-            setPace(`${paceMinutes}:${paceSeconds.toString().padStart(2, '0')}`);
-          }
-          
-          const path = await getCurrentRunPath();
-          if (path && path.length > routeRef.current.length) {
-            setRouteCoordinates([...path]);
-          }
-        } catch (err) {
-          console.error("Error in post-resume refresh:", err);
-        }
-      }, 3500);
-    } catch (error) {
-      console.error('Error resuming run:', error);
-      // If there's an error during resume, try a more aggressive approach
-      try {
-        console.log("Using fallback resume approach");
-        setIsPaused(false);
-        
-        // Clear and restart all timers explicitly
-        if (displayTimerRef.current) {
-          clearInterval(displayTimerRef.current);
-          displayTimerRef.current = null;
-        }
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        
-        // Force update active run data
-        await AsyncStorage.setItem(ACTIVE_RUN_KEY, JSON.stringify({
-          isTracking: true,
-          isPaused: false,
-          resumeTime: new Date().getTime()
-        }));
-        
-        // Restart all timers
-        resumeDisplayTimer();
-        startDirectTimer(false);
-      } catch (fallbackError) {
-        console.error("Fallback resume approach failed:", fallbackError);
-      }
     }
   };
 
@@ -863,7 +605,7 @@ export default function RunTrackerScreen() {
     setDisplayDuration(0);
     setRouteCoordinates([]);
     setIsTracking(false);
-    setIsPaused(false);
+    trackingRef.current = false;
     
     // If we have a current location, center map on it
     if (currentLocation) {
@@ -882,8 +624,51 @@ export default function RunTrackerScreen() {
     console.log("Run tracker reset complete");
   };
 
+  // If there's actual route data, show a summary
+  const showDiscardAlert = () => {
+    Alert.alert(
+      'Cancel Run?',
+      'Are you sure you wish to end and discard this run? This cannot be undone.',
+      [
+        {
+          text: 'Continue Run',
+          style: 'cancel',
+        },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: async () => {
+            await stopLocationTracking();
+            resetRunTracker();
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  };
+
+  // Show confirmation before completing run
+  const showCompleteRunAlert = () => {
+    Alert.alert(
+      'Complete Run',
+      'Are you sure you want to complete this run?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Complete',
+          onPress: async () => {
+            await handleStopRun();
+          },
+        },
+      ]
+    );
+  };
+
   // Handle stopping the run
-  const stopRun = async () => {
+  const handleStopRun = async () => {
     try {
       console.log("🔍 STOP RUN CALLED - Beginning save flow");
       
@@ -903,7 +688,7 @@ export default function RunTrackerScreen() {
       console.log("🔍 Location tracking stopped. Run data from tracking:", JSON.stringify(runData));
       
       setIsTracking(false);
-      setIsPaused(false);
+      trackingRef.current = false;
       
       // Use the display duration as the final duration
       const finalDuration = displayDuration;
@@ -1040,27 +825,9 @@ export default function RunTrackerScreen() {
     }
   };
 
-  // If there's actual route data, show a summary
-  const showDiscardAlert = () => {
-    Alert.alert(
-      'Cancel Run?',
-      'Your current run will be discarded.',
-      [
-        {
-          text: 'Continue Run',
-          style: 'cancel',
-        },
-        {
-          text: 'Discard',
-          style: 'destructive',
-          onPress: async () => {
-            await stopLocationTracking();
-            resetRunTracker();
-            navigation.goBack();
-          },
-        },
-      ]
-    );
+  // Wrapper for the stop run functionality that shows confirmation first
+  const stopRun = () => {
+    showCompleteRunAlert();
   };
 
   // Format the duration time (seconds) to MM:SS or HH:MM:SS
@@ -1087,9 +854,6 @@ export default function RunTrackerScreen() {
       if (locationSubscription.current) {
         locationSubscription.current.remove();
       }
-      if (preserveIntervalRef.current) {
-        clearInterval(preserveIntervalRef.current);
-      }
     };
   }, []);
 
@@ -1111,8 +875,8 @@ export default function RunTrackerScreen() {
           showsMyLocationButton={false}
           userLocationAnnotationTitle=""
         >
-          {/* Show route line if there are coordinates */}
-          {routeCoordinates.length > 0 && (
+          {/* Show route line ONLY if tracking is active and there are coordinates */}
+          {isTracking && routeCoordinates.length > 0 && (
             <Polyline
               coordinates={routeCoordinates}
               strokeColor="#FF5733"
@@ -1154,35 +918,27 @@ export default function RunTrackerScreen() {
           <View style={styles.runningControls}>
             <TouchableOpacity 
               style={styles.cancelButton}
-              onPress={stopRun}
+              onPress={showDiscardAlert}
             >
               <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
             </TouchableOpacity>
             
-            {isPaused ? (
-              <TouchableOpacity 
-                style={styles.resumeButton}
-                onPress={resumeRun}
-              >
-                <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
-                <Text style={styles.buttonText}>Resume</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity 
-                style={styles.pauseButton}
-                onPress={pauseRun}
-              >
-                <FontAwesomeIcon icon={faPause} size={24} color="#FFFFFF" />
-                <Text style={styles.buttonText}>Pause</Text>
-              </TouchableOpacity>
-            )}
+            {/* 
+            <TouchableOpacity 
+              style={styles.pauseButton}
+              onPress={pauseRun}
+            >
+              <FontAwesomeIcon icon={faPause} size={24} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Pause</Text>
+            </TouchableOpacity>
+            */}
             
             <TouchableOpacity 
               style={styles.stopButton}
               onPress={stopRun}
             >
               <FontAwesomeIcon icon={faStop} size={24} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Stop</Text>
+              <Text style={styles.buttonText}>Stop and finish</Text>
             </TouchableOpacity>
           </View>
         )}
