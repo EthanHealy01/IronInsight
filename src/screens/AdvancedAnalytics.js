@@ -26,6 +26,8 @@ import { db } from '../database/db';
 import { styles as globalStylesFunc } from '../theme/styles';
 import Svg, { Circle } from 'react-native-svg';
 import InteractiveChart from '../components/analytics/InteractiveChart';
+import RunHistory from './runs/RunHistory';
+import WorkoutHistory from './workouts/WorkoutHistory';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -56,6 +58,8 @@ const AdvancedAnalytics = ({ navigation, route }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [exerciseHistoryMap, setExerciseHistoryMap] = useState({});
   const [hasSelectedExercise, setHasSelectedExercise] = useState(false);
+  const [runHistoryModalVisible, setRunHistoryModalVisible] = useState(false);
+  const [workoutHistoryModalVisible, setWorkoutHistoryModalVisible] = useState(false);
 
   // Calculate responsive chart width (leaving space for card padding etc.)
   const chartContainerPadding = 10; // Padding inside the card
@@ -1228,6 +1232,27 @@ const AdvancedAnalytics = ({ navigation, route }) => {
           {renderVolumeChart()}
         </View>
         {renderExerciseModal()}
+      {/* Workout History Modal */}
+      <Modal
+        key={`workout-history-modal-${workoutHistoryModalVisible}`}
+        animationType="slide"
+        transparent={false}
+        visible={workoutHistoryModalVisible}
+        onRequestClose={() => setWorkoutHistoryModalVisible(false)}
+      >
+        <WorkoutHistory onClose={() => setWorkoutHistoryModalVisible(false)} />
+      </Modal>
+
+      {/* Run History Modal */}
+      <Modal
+        key={`run-history-modal-${runHistoryModalVisible}`}
+        animationType="slide"
+        transparent={false}
+        visible={runHistoryModalVisible}
+        onRequestClose={() => setRunHistoryModalVisible(false)}
+      >
+        <RunHistory onClose={() => setRunHistoryModalVisible(false)} />
+      </Modal>
       </ScrollView>
       
   );
