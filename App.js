@@ -27,7 +27,7 @@ const RootWrapper = ({ children }) => {
       <StatusBar
         backgroundColor={isDarkMode ? '#232323' : '#F5F5F5'}
       />
-      <SafeAreaView style={[{ flex: 1, marginHorizontal:15 }, currentStyles.backgroundColor]}>
+      <SafeAreaView style={[{ flex: 1, marginHorizontal:15, overflow: 'visible'}, currentStyles.backgroundColor]}>
         {children}
       </SafeAreaView>
     </View>

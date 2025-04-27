@@ -145,6 +145,7 @@ export const styles = () => {
             shadowOpacity: 0.25,
             shadowRadius: 4,
             elevation: 5, 
+            marginBottom: 10,
         },
         tabItem: {
             flex: 1,

@@ -562,7 +562,7 @@ export default function ProfileScreen({ navigation }) {
               )}
               {userInfo?.height && (
                 <Text style={globalStyles.fontWeightRegular}>
-                  {' '}{userInfo.height} cm
+                  {' '}{userInfo.height.toFixed(2)} cm
                 </Text>
               )}
             </View>
