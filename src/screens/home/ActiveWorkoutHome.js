@@ -272,7 +272,7 @@ useEffect(() => {
 
   // Calculate remaining sets and estimated time
   const remainingSets = totalSets - completedSetsCount;
-  const MINUTES_PER_SET = 2; // Adjust this value based on your preference
+  const MINUTES_PER_SET = 4.5; // Adjust this value based on your preference
   const estimatedMinutesLeft = Math.max(0, Math.ceil(remainingSets * MINUTES_PER_SET));
 
   // Expand/collapse
