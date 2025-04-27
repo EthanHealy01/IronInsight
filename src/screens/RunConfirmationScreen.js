@@ -12,11 +12,11 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faArrowLeft, faMedal } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faMedal, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { styles as globalStyles } from '../theme/styles';
 import MapView, { Polyline } from 'react-native-maps';
-import { getAllRuns, saveRun } from '../database/functions/runs';
+import { getAllRuns, saveRun, deleteRun } from '../database/functions/runs';
 
 const MEDAL_COLORS = {
   gold: '#FFD700',
@@ -75,13 +75,20 @@ export default function RunConfirmationScreen({ route }) {
         const allRuns = await getAllRuns();
         setActiveRuns(allRuns);
         
+        // For historical runs, we need to ensure proper comparison
+        const isHistoricalRun = runData.id !== undefined;
+        console.log(`Processing ${isHistoricalRun ? 'historical' : 'new'} run data`, isHistoricalRun ? `ID: ${runData.id}` : '');
+        
         // Calculate personal bests for each milestone
         const milestoneTimings = {};
         
         MILESTONE_ORDER.forEach(milestone => {
           // Filter runs that have this milestone time
           const runsWithMilestone = allRuns.filter(
-            run => run.splitTimes && run.splitTimes[milestone] !== null
+            run => run.splitTimes && run.splitTimes[milestone] !== null &&
+            // For historical runs: when calculating PBs, consider all runs except the current one
+            // so we can compare it against the others fairly
+            (!isHistoricalRun || run.id !== runData.id)
           );
           
           // Sort by fastest time for this milestone
@@ -94,6 +101,27 @@ export default function RunConfirmationScreen({ route }) {
             id: run.id,
             time: run.splitTimes[milestone]
           }));
+          
+          // For historical runs: now check where the current run would rank
+          if (isHistoricalRun && runData.splitTimes && runData.splitTimes[milestone]) {
+            const currentRunTime = runData.splitTimes[milestone];
+            
+            // Check where this run would place in the sorted list
+            let insertIndex = sortedRuns.findIndex(run => currentRunTime <= run.splitTimes[milestone]);
+            if (insertIndex === -1) insertIndex = sortedRuns.length; // Append at end if not faster
+            
+            // If it would be in the top 3, insert it to get proper ranking
+            if (insertIndex < 3) {
+              const updatedRanking = [...milestoneTimings[milestone]];
+              // Insert the current run at the right position
+              updatedRanking.splice(insertIndex, 0, {
+                id: runData.id,
+                time: currentRunTime
+              });
+              // Keep only top 3
+              milestoneTimings[milestone] = updatedRanking.slice(0, 3);
+            }
+          }
         });
         
         setPersonalBests(milestoneTimings);
@@ -190,7 +218,17 @@ export default function RunConfirmationScreen({ route }) {
   const getMedalRank = (milestone, time) => {
     if (!time || !personalBests[milestone]) return null;
     
-    // Find position of this time in personal bests
+    // For historical runs, find position by ID
+    if (runData.id) {
+      const rank = personalBests[milestone].findIndex(pb => pb.id === runData.id);
+      
+      if (rank === 0) return 'gold';
+      if (rank === 1) return 'silver';
+      if (rank === 2) return 'bronze';
+      return null;
+    }
+    
+    // For new runs, find position by time value
     const rank = personalBests[milestone].findIndex(pb => pb.time === time);
     
     if (rank === 0) return 'gold';
@@ -206,7 +244,7 @@ export default function RunConfirmationScreen({ route }) {
       return 'gold';
     }
     
-    // Check if current time beats the best time
+    // For new runs, check against best times
     const bestTime = personalBests[milestone][0]?.time;
     if (bestTime && time < bestTime) return 'gold';
     
@@ -325,12 +363,43 @@ export default function RunConfirmationScreen({ route }) {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Add delete handlers
+  const handleDelete = async () => {
+    try {
+      await deleteRun(runData.id);
+      navigation.navigate('RunHistory');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete run: ' + error.message);
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete Run?',
+      'This cannot be reversed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: handleDelete },
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={[appStyles.container, styles.container]}>
       <ScrollView style={styles.scrollView} ref={scrollViewRef}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.headerText}>Run Complete!</Text>
-          <Text style={styles.subHeaderText}>{new Date(runData.startTime).toLocaleDateString()}</Text>
+        <View style={[styles.headerContainer, appStyles.flexRowBetween, {alignItems: 'center'}]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{padding: 5}}>
+            <FontAwesomeIcon icon={faArrowLeft} size={20} color={isDarkMode ? '#FFFFFF' : '#000000'} />
+          </TouchableOpacity>
+          <View style={{alignItems: 'center'}}>
+            <Text style={[styles.headerText, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>Run Complete!</Text>
+            <Text style={[styles.subHeaderText, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}>
+              {new Date(runData.startTime).toLocaleDateString()}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={confirmDelete} style={{padding: 5}}>
+            <FontAwesomeIcon icon={faTrash} size={20} color={isDarkMode ? '#FFFFFF' : '#000000'} />
+          </TouchableOpacity>
         </View>
         
         {/* Map summary */}
@@ -359,30 +428,34 @@ export default function RunConfirmationScreen({ route }) {
         </View>
         
         {/* Overall stats */}
-        <View style={styles.statsContainer}>
+        <View style={[styles.statsContainer, {backgroundColor: isDarkMode ? '#000000' : '#FFFFFF'}]}>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Distance</Text>
-            <Text style={styles.statValue}>{runData.distance.toFixed(2)} km</Text>
+            <Text style={[styles.statLabel, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}>Distance</Text>
+            <Text style={[styles.statValue, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>{runData.distance.toFixed(2)} km</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Duration</Text>
-            <Text style={styles.statValue}>{formatDuration(runData.duration)}</Text>
+            <Text style={[styles.statLabel, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}>Duration</Text>
+            <Text style={[styles.statValue, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>{formatDuration(runData.duration)}</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Avg. Pace</Text>
-            <Text style={styles.statValue}>{formatPace(runData.pace)} /km</Text>
+            <Text style={[styles.statLabel, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}>Avg. Pace</Text>
+            <Text style={[styles.statValue, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>{formatPace(runData.pace)} /km</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Calories</Text>
-            <Text style={styles.statValue}>{runData.calories}</Text>
+            <Text style={[styles.statLabel, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}>Calories</Text>
+            <Text style={[styles.statValue, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>{runData.calories}</Text>
           </View>
         </View>
         
         {/* Pace chart */}
         {paceData.length > 3 && (
-          <View style={styles.chartContainer}>
-            <Text style={styles.sectionTitle}>Pace Over Distance</Text>
-            <View onTouchStart={handleChartTouch} onTouchMove={handleChartTouch}>
+          <View style={[styles.chartContainer, {backgroundColor: isDarkMode ? '#000000' : '#FFFFFF'}]}>
+            <Text style={[styles.sectionTitle, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>Pace Over Distance</Text>
+            <View 
+              onTouchStart={handleChartTouch} 
+              onTouchMove={handleChartTouch}
+              style={styles.chartWrapper}
+            >
               <LineChart
                 data={{
                   labels: paceData.map(item => `${item.distance.toFixed(1)}`),
@@ -398,15 +471,15 @@ export default function RunConfirmationScreen({ route }) {
                     }
                   ]
                 }}
-                width={Dimensions.get('window').width - 20}
+                width={Dimensions.get('window').width - 40}
                 height={220}
                 chartConfig={{
-                  backgroundColor: '#ffffff',
-                  backgroundGradientFrom: '#ffffff',
-                  backgroundGradientTo: '#ffffff',
+                  backgroundColor: isDarkMode ? '#000000' : '#ffffff',
+                  backgroundGradientFrom: isDarkMode ? '#000000' : '#ffffff',
+                  backgroundGradientTo: isDarkMode ? '#000000' : '#ffffff',
                   decimalPlaces: 1,
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  color: (opacity = 1) => isDarkMode ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
+                  labelColor: (opacity = 1) => isDarkMode ? `rgba(255, 255, 255, ${opacity})` : `rgba(0, 0, 0, ${opacity})`,
                   style: {
                     borderRadius: 16
                   },
@@ -417,8 +490,9 @@ export default function RunConfirmationScreen({ route }) {
                   },
                   formatYLabel: (yValue) => `${yValue} min`,
                   formatXLabel: (xValue) => `${xValue} km`,
-                  xLabelsOffset: 10, // Move labels down slightly
-                  horizontalLabelRotation: 90, // Rotate x-axis labels by 90 degrees
+                  xLabelsOffset: -5, // Move labels up a bit
+                  yLabelsOffset: 5, // Add a bit more space for y labels
+                  horizontalLabelRotation: 90, // Rotate x-axis labels
                 }}
                 bezier
                 style={styles.chart}
@@ -445,17 +519,22 @@ export default function RunConfirmationScreen({ route }) {
         )}
         
         {/* Milestone times with medals */}
-        <View style={styles.milestonesContainer}>
-          <Text style={styles.sectionTitle}>Milestone Times</Text>
+        <View style={[styles.milestonesContainer, {backgroundColor: isDarkMode ? '#000000' : '#FFFFFF'}]}>
+          <Text style={[styles.sectionTitle, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>Milestone Times</Text>
           
           {getRelevantMilestones().map(milestone => {
             const time = runData.splitTimes[milestone];
-            const medalRank = isNewPersonalBest(milestone, time);
+            // Use getMedalRank for historical runs, isNewPersonalBest for new runs
+            const medalRank = runData.id ? getMedalRank(milestone, time) : isNewPersonalBest(milestone, time);
             
             return (
-              <View key={milestone} style={styles.milestoneItem}>
+              <View key={milestone} style={[styles.milestoneItem, {
+                borderBottomColor: isDarkMode ? '#333333' : '#dddddd'
+              }]}>
                 <View style={styles.milestoneHeader}>
-                  <Text style={styles.milestoneName}>{MILESTONE_NAMES[milestone]}</Text>
+                  <Text style={[styles.milestoneName, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>
+                    {MILESTONE_NAMES[milestone]}
+                  </Text>
                   {medalRank && (
                     <FontAwesomeIcon
                       icon={faMedal}
@@ -464,9 +543,9 @@ export default function RunConfirmationScreen({ route }) {
                     />
                   )}
                 </View>
-                <Text style={styles.milestoneTime}>
+                <Text style={[styles.milestoneTime, {color: isDarkMode ? '#FFFFFF' : '#000000'}]}>
                   {time ? formatDuration(time) : 'Not reached'} 
-                  {time ? <Text style={styles.unitText}> mins</Text> : null}
+                  {time ? <Text style={[styles.unitText, {color: isDarkMode ? '#AAAAAA' : '#666666'}]}> mins</Text> : null}
                 </Text>
               </View>
             );
@@ -481,14 +560,6 @@ export default function RunConfirmationScreen({ route }) {
           <Text style={styles.doneButtonText}>DONE</Text>
         </TouchableOpacity>
       </ScrollView>
-      
-      {/* Back button */}
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => navigation.goBack()}
-      >
-        <FontAwesomeIcon icon={faArrowLeft} size={20} color="#FFFFFF" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -511,11 +582,10 @@ const styles = StyleSheet.create({
   },
   subHeaderText: {
     fontSize: 16,
-    color: '#666',
   },
   mapContainer: {
     height: 200,
-    margin: 10,
+    marginBottom: 10,
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -526,9 +596,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    margin: 10,
+    marginBottom: 10,
     padding: 15,
-    backgroundColor: '#f0f0f0',
     borderRadius: 10,
   },
   statItem: {
@@ -538,22 +607,22 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: 14,
-    color: '#666',
   },
   statValue: {
     fontSize: 18,
     fontWeight: 'bold',
   },
   chartContainer: {
-    margin: 10,
     padding: 10,
     backgroundColor: '#fff',
     borderRadius: 10,
     alignItems: 'center',
+    marginBottom: 10,
   },
   chart: {
     marginVertical: 8,
     borderRadius: 16,
+    paddingRight: 10,
   },
   tooltipContainer: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -575,9 +644,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   milestonesContainer: {
-    margin: 10,
+    marginBottom: 10,
     padding: 15,
-    backgroundColor: '#f0f0f0',
     borderRadius: 10,
   },
   milestoneItem: {
@@ -585,7 +653,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
     paddingVertical: 10,
   },
   milestoneHeader: {
@@ -603,7 +670,7 @@ const styles = StyleSheet.create({
   doneButton: {
     backgroundColor: '#4CAF50',
     paddingVertical: 15,
-    margin: 10,
+    marginBottom: 10,
     borderRadius: 30,
     alignItems: 'center',
     marginBottom: 100,
@@ -627,6 +694,10 @@ const styles = StyleSheet.create({
   unitText: {
     fontSize: 14,
     fontWeight: 'normal',
-    color: '#666',
+  },
+  chartWrapper: {
+    width: '100%', 
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 }); 

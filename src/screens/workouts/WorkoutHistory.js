@@ -8,6 +8,7 @@ import { parseWeight } from '../../utils/weightUtils';
 import { getUserInfo } from '../../database/functions/user';
 import { LineChart } from 'react-native-chart-kit';
 import InteractiveChart from '../../components/analytics/InteractiveChart';
+import { useNavigation } from '@react-navigation/native';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -497,6 +498,7 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete, workoutsData
   const globalStyles = styles();
   const [confirmationButtonVisible, setConfirmationButtonVisible] = useState(false);
   const scrollViewRef = useRef(null);
+  const navigation = useNavigation();
   
   const putButtonsIntoFocus = () => {
     if (scrollViewRef.current) {
@@ -574,6 +576,7 @@ const WorkoutDetailsModal = ({ visible, onClose, workout, onDelete, workoutsData
                 Alert.alert("Success", "Workout deleted successfully");
                 onClose();
                 onDelete();
+                navigation.navigate('WorkoutHistory');
               } else {
                 Alert.alert("Error", "Failed to delete workout");
               }
@@ -1067,6 +1070,15 @@ const WorkoutHistory = ({ onClose }) => {
     return frequencyData.sort((a, b) => a.date - b.date);
   };
 
+  const navigation = useNavigation();
+
+  const closeOrGoBack = () => {
+    if (typeof onClose === 'function') {
+      onClose();
+    } else {
+      navigation.goBack();
+    }
+  };
   return (
     <SafeAreaView style={[globalStyles.container,]}>
       <ScrollView ref={scrollViewRef} style={{padding: 10}}>
@@ -1074,7 +1086,7 @@ const WorkoutHistory = ({ onClose }) => {
           <Text style={[globalStyles.fontWeightBold, globalStyles.fontSizeLarge, { marginBottom: 15 }]}>
             Workout History
           </Text>
-          <TouchableOpacity onPress={onClose}>
+          <TouchableOpacity onPress={closeOrGoBack}>
             <FontAwesomeIcon icon={faClose} size={24} color="#666" />
           </TouchableOpacity>
         </View>

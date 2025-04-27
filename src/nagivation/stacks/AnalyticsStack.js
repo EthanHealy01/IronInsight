@@ -4,6 +4,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import GenerateSampleData from '../../screens/analytics/GenerateSampleData';
 import AdvancedAnalytics from '../../screens/AdvancedAnalytics';
 import RunConfirmationScreen from '../../screens/RunConfirmationScreen';
+import RunHistory from '../../screens/runs/RunHistory';
+import WorkoutHistory from '../../screens/workouts/WorkoutHistory';
 
 const Stack = createStackNavigator();
 
@@ -24,6 +26,16 @@ export default function AnalyticsStack() {
         name="RunConfirmation"
         component={RunConfirmationScreen}
         options={{ title: 'Run Details' }}
+      />
+      <Stack.Screen
+        name="RunHistory"
+        component={RunHistory}
+        options={{ title: 'Run History' }}
+      />
+      <Stack.Screen
+        name="WorkoutHistory"
+        component={WorkoutHistory}
+        options={{ title: 'Workout History' }}
       />
     </Stack.Navigator>
   );

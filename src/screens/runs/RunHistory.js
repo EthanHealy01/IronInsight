@@ -56,7 +56,7 @@ const formatPace = (pace) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
-const RunHistory = ({ onClose }) => {
+const RunHistory = ({ onClose={} }) => {
   const globalStyles = styles();
   const navigation = useNavigation();
   const [runs, setRuns] = useState([]);
@@ -96,6 +96,8 @@ const RunHistory = ({ onClose }) => {
         
         if (onClose) {
           onClose(); // Close the modal after navigation
+        } else {
+            navigation.goBack();
         }
       }
     } catch (error) {
@@ -105,6 +107,13 @@ const RunHistory = ({ onClose }) => {
     }
   };
 
+  const closeOrGoBack = () => {
+    if (typeof onClose === 'function') {
+      onClose();
+    } else {
+      navigation.goBack();
+    }
+  };
   return (
     <SafeAreaView style={globalStyles.container}>
       <ScrollView ref={scrollViewRef} style={{padding: 10}}>
@@ -112,8 +121,8 @@ const RunHistory = ({ onClose }) => {
           <Text style={[globalStyles.fontWeightBold, globalStyles.fontSizeLarge, { marginBottom: 15 }]}>
             Run History
           </Text>
-          <TouchableOpacity onPress={onClose}>
-            <FontAwesomeIcon icon={faClose} size={24} color="#666" />
+          <TouchableOpacity onPress={closeOrGoBack}>
+            <FontAwesomeIcon icon={faClose} size={24} color={globalStyles.grayText.color} />
           </TouchableOpacity>
         </View>
         
@@ -149,21 +158,21 @@ const RunHistory = ({ onClose }) => {
                   </Text>
                   <View style={{marginTop: 5, flexDirection: 'row', flexWrap: 'wrap'}}>
                     <View style={{marginRight: 20, marginTop: 5}}>
-                      <Text style={globalStyles.exploreCardLabel}>Distance</Text>
-                      <Text style={globalStyles.exploreCardValue}>{run.distance != null ? run.distance.toFixed(2) : '0.00'} km</Text>
+                      <Text style={globalStyles.exploreCardLabel || globalStyles.grayText}>Distance</Text>
+                      <Text style={globalStyles.exploreCardValue || globalStyles.fontWeightBold}>{run.distance != null ? run.distance.toFixed(2) : '0.00'} km</Text>
                     </View>
                     <View style={{marginRight: 20, marginTop: 5}}>
-                      <Text style={globalStyles.exploreCardLabel}>Duration</Text>
-                      <Text style={globalStyles.exploreCardValue}>{formatDuration(run.duration)}</Text>
+                      <Text style={globalStyles.exploreCardLabel || globalStyles.grayText}>Duration</Text>
+                      <Text style={globalStyles.exploreCardValue || globalStyles.fontWeightBold}>{formatDuration(run.duration)}</Text>
                     </View>
                     <View style={{marginTop: 5}}>
-                      <Text style={globalStyles.exploreCardLabel}>Pace</Text>
-                      <Text style={globalStyles.exploreCardValue}>{formatPace(run.pace)} /km</Text>
+                      <Text style={globalStyles.exploreCardLabel || globalStyles.grayText}>Pace</Text>
+                      <Text style={globalStyles.exploreCardValue || globalStyles.fontWeightBold}>{formatPace(run.pace)} /km</Text>
                     </View>
                   </View>
                 </View>
                 <View style={{paddingLeft: 10, alignItems: 'center', justifyContent: 'center'}}>
-                  <FontAwesomeIcon icon={faChevronRight} size={20} color="#666" />
+                  <FontAwesomeIcon icon={faChevronRight} size={20} color={globalStyles.grayText.color} />
                 </View>
               </View>
             </TouchableOpacity>

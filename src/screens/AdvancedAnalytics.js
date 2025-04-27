@@ -26,8 +26,6 @@ import { db } from '../database/db';
 import { styles as globalStylesFunc } from '../theme/styles';
 import Svg, { Circle } from 'react-native-svg';
 import InteractiveChart from '../components/analytics/InteractiveChart';
-import RunHistory from './runs/RunHistory';
-import WorkoutHistory from './workouts/WorkoutHistory';
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -58,8 +56,6 @@ const AdvancedAnalytics = ({ navigation, route }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [exerciseHistoryMap, setExerciseHistoryMap] = useState({});
   const [hasSelectedExercise, setHasSelectedExercise] = useState(false);
-  const [runHistoryModalVisible, setRunHistoryModalVisible] = useState(false);
-  const [workoutHistoryModalVisible, setWorkoutHistoryModalVisible] = useState(false);
 
   // Calculate responsive chart width (leaving space for card padding etc.)
   const chartContainerPadding = 10; // Padding inside the card
@@ -1042,7 +1038,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
       <View style={styles.historyButtonsContainer}>
         <TouchableOpacity
           style={[globalStyles.primaryButton, {flex: 1, marginRight:5, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}]}
-          onPress={() => setWorkoutHistoryModalVisible(true)}
+          onPress={() => navigation.navigate('WorkoutHistory')}
         >
           <Text style={{marginRight: 10, fontWeight: 'bold', color: '#FFFFFF'}}>View Workout History</Text>
           <FontAwesomeIcon icon={faList} size={16} color="#FFFFFF" />
@@ -1050,7 +1046,7 @@ const AdvancedAnalytics = ({ navigation, route }) => {
         
         <TouchableOpacity
           style={[globalStyles.primaryButton, {flex: 1, marginLeft:5, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}]}
-          onPress={() => setRunHistoryModalVisible(true)}
+          onPress={() => navigation.navigate('RunHistory')}
         >
           <Text style={{marginRight: 10, fontWeight: 'bold', color: '#FFFFFF'}}>View Run History</Text>
           <FontAwesomeIcon icon={faRunning} size={16} color="#FFFFFF" />
@@ -1232,27 +1228,6 @@ const AdvancedAnalytics = ({ navigation, route }) => {
           {renderVolumeChart()}
         </View>
         {renderExerciseModal()}
-      {/* Workout History Modal */}
-      <Modal
-        key={`workout-history-modal-${workoutHistoryModalVisible}`}
-        animationType="slide"
-        transparent={false}
-        visible={workoutHistoryModalVisible}
-        onRequestClose={() => setWorkoutHistoryModalVisible(false)}
-      >
-        <WorkoutHistory onClose={() => setWorkoutHistoryModalVisible(false)} />
-      </Modal>
-
-      {/* Run History Modal */}
-      <Modal
-        key={`run-history-modal-${runHistoryModalVisible}`}
-        animationType="slide"
-        transparent={false}
-        visible={runHistoryModalVisible}
-        onRequestClose={() => setRunHistoryModalVisible(false)}
-      >
-        <RunHistory onClose={() => setRunHistoryModalVisible(false)} />
-      </Modal>
       </ScrollView>
       
   );

@@ -1,22 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  StyleSheet, 
   View, 
-  Text, 
   TouchableOpacity, 
   SafeAreaView,
   Alert,
-  Platform,
-  Dimensions,
-  AppState, 
-  useColorScheme
+  AppState,
+  StyleSheet
 } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faPlay, faStop, faPause, faArrowLeft, faTimes } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft } from '@fortawesome/free-solid-svg-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { styles as globalStyles } from '../theme/styles';
-import MapView, { Polyline, Marker } from 'react-native-maps';
+import { styles as globalStyles } from '../../theme/styles';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   initBackgroundTracking,
   startLocationTracking,
@@ -31,18 +27,21 @@ import {
   RUN_STATS_KEY,
   RUN_LOCATIONS_KEY,
   ACTIVE_RUN_KEY
-} from '../utils/locationTaskManager';
-import { saveRun, verifyRunsTable, checkDatabaseIntegrity, calculateSplitTimes } from '../database/functions/runs';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+} from '../../utils/locationTaskManager';
+import { saveRun, verifyRunsTable, checkDatabaseIntegrity, calculateSplitTimes } from '../../database/functions/runs';
 
-export default function RunTrackerScreen() {
+// Import subcomponents from index
+import { MapDisplay, StatsBar, RunControls } from './components';
+
+export default function RunTracker() {
   const [isTracking, setIsTracking] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [mapFollowsUser, setMapFollowsUser] = useState(true); // Add state for map following
 
   const trackingRef = useRef(isTracking);
   const routeRef = useRef(routeCoordinates);
+  const mapFollowsUserRef = useRef(mapFollowsUser);
 
-  const isDarkMode = useColorScheme() === 'dark';
   const appStyles = globalStyles();
   const navigation = useNavigation();
   const [currentLocation, setCurrentLocation] = useState(null);
@@ -60,6 +59,11 @@ export default function RunTrackerScreen() {
   const appState = useRef(AppState.currentState);
   const locationSubscription = useRef(null);
   const blockRefreshUntilRef = useRef(0);
+
+  // Update ref when state changes
+  useEffect(() => {
+    mapFollowsUserRef.current = mapFollowsUser;
+  }, [mapFollowsUser]);
 
   // Initialize the background task on component mount
   useEffect(() => {
@@ -95,7 +99,7 @@ export default function RunTrackerScreen() {
           setCurrentLocation({ latitude, longitude });
           
           // Center map on current location
-          if (mapRef.current) {
+          if (mapRef.current && mapFollowsUserRef.current) {
             mapRef.current.animateToRegion({
               latitude,
               longitude,
@@ -176,7 +180,6 @@ export default function RunTrackerScreen() {
       startDisplayTimer();
     }
   };
-
   
   // Calculate distance between two coordinates using Haversine formula
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -244,8 +247,8 @@ export default function RunTrackerScreen() {
           if (latestPoint && latestPoint.latitude && latestPoint.longitude) {
             setCurrentLocation(latestPoint);
             
-            // Center map on the latest location if tracking
-            if (mapRef.current && activeRun.isTracking) {
+            // Center map on the latest location if tracking and map follows user
+            if (mapRef.current && activeRun.isTracking && mapFollowsUserRef.current) {
               mapRef.current.animateToRegion({
                 latitude: latestPoint.latitude,
                 longitude: latestPoint.longitude,
@@ -456,13 +459,15 @@ export default function RunTrackerScreen() {
                                      JSON.stringify([...arr, newPoint]));
         }
         
-        // Always update the map center to follow user
-        mapRef.current?.animateToRegion({
-          latitude: newPoint.latitude,
-          longitude: newPoint.longitude,
-          latitudeDelta:  0.005,
-          longitudeDelta: 0.005
-        }, 500);
+        // Always update the map center to follow user if map follows user is enabled
+        if (mapFollowsUserRef.current && mapRef.current) {
+          mapRef.current.animateToRegion({
+            latitude: newPoint.latitude,
+            longitude: newPoint.longitude,
+            latitudeDelta:  0.005,
+            longitudeDelta: 0.005
+          }, 500);
+        }
       }
     );
   };
@@ -555,6 +560,9 @@ export default function RunTrackerScreen() {
         setIsTracking(true);
         trackingRef.current = true;
         
+        // Reset map to follow user mode when starting a run
+        setMapFollowsUser(true);
+        
         // Clear any existing route coordinates before starting
         setRouteCoordinates([]);
         
@@ -607,6 +615,9 @@ export default function RunTrackerScreen() {
     setIsTracking(false);
     trackingRef.current = false;
     
+    // Reset map follow state
+    setMapFollowsUser(true);
+    
     // If we have a current location, center map on it
     if (currentLocation) {
       mapRef.current?.animateToRegion({
@@ -622,6 +633,18 @@ export default function RunTrackerScreen() {
     AsyncStorage.removeItem(RUN_LOCATIONS_KEY);
     
     console.log("Run tracker reset complete");
+  };
+
+  // Format the duration time (seconds) to MM:SS or HH:MM:SS
+  const formatDuration = (seconds) => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   // If there's actual route data, show a summary
@@ -665,6 +688,11 @@ export default function RunTrackerScreen() {
         },
       ]
     );
+  };
+
+  // Wrapper for the stop run functionality that shows confirmation first
+  const stopRun = () => {
+    showCompleteRunAlert();
   };
 
   // Handle stopping the run
@@ -825,22 +853,28 @@ export default function RunTrackerScreen() {
     }
   };
 
-  // Wrapper for the stop run functionality that shows confirmation first
-  const stopRun = () => {
-    showCompleteRunAlert();
+  // Function to re-center the map on the user
+  const handleRecenter = () => {
+    if (currentLocation && mapRef.current) {
+      console.log("Recentering map to current location:", currentLocation);
+      // Simple direct recenter without complex state management
+      mapRef.current.animateToRegion({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      }, 500);
+      
+      setMapFollowsUser(true);
+    } else {
+      console.log("Unable to recenter - no current location available");
+    }
   };
 
-  // Format the duration time (seconds) to MM:SS or HH:MM:SS
-  const formatDuration = (seconds) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    
-    if (hours > 0) {
-      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes}:${secs.toString().padStart(2, '0')}`;
-  };
+  // Debug map follows user state changes
+  useEffect(() => {
+    console.log("RunTracker: mapFollowsUser changed to", mapFollowsUser);
+  }, [mapFollowsUser]);
 
   // Clean up on unmount
   useEffect(() => {
@@ -857,213 +891,83 @@ export default function RunTrackerScreen() {
     };
   }, []);
 
+  // Update map follows user state
+  const handleMapFollowsUserChange = (follows) => {
+    console.log("RunTracker: handleMapFollowsUserChange called with:", follows);
+    setMapFollowsUser(follows);
+  };
+
   return (
-    <SafeAreaView style={appStyles.container}>
-      {/* Map View */}
-      <View style={styles.mapContainer}>
-        <MapView
+    <View style={styles.container}>
+
+      {/* UI elements positioned on top of the map */}
+      <SafeAreaView style={styles.overlay}>
+        {/* Back Button */}
+        {/* Map fills the entire screen */}
+        <MapDisplay 
           ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: currentLocation?.latitude || 37.7749,
-            longitude: currentLocation?.longitude || -122.4194,
-            latitudeDelta: 0.005,
-            longitudeDelta: 0.005,
+          currentLocation={currentLocation}
+          routeCoordinates={routeCoordinates}
+          isTracking={isTracking}
+          onFollowsUserChange={handleMapFollowsUserChange}
+          followsUser={mapFollowsUser}
+        />
+        
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => {
+            if (isTracking) {
+              showDiscardAlert();
+            } else {
+              navigation.goBack();
+            }
           }}
-          showsUserLocation={true}
-          followsUserLocation={true}
-          showsMyLocationButton={false}
-          userLocationAnnotationTitle=""
         >
-          {/* Show route line ONLY if tracking is active and there are coordinates */}
-          {isTracking && routeCoordinates.length > 0 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#FF5733"
-              strokeWidth={4}
-            />
-          )}
-        </MapView>
-      </View>
-      
-      {/* Stats Bar */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Distance</Text>
-          <Text style={styles.statValue}>{distance.toFixed(2)} km</Text>
+          <FontAwesomeIcon icon={faArrowLeft} size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+        
+        {/* Controls and Stats at the bottom */}
+        <View style={styles.controlsWrapper}>
+          
+          <RunControls 
+            isTracking={isTracking}
+            startRun={startRun}
+            stopRun={stopRun}
+            showDiscardAlert={showDiscardAlert}
+            onRecenter={handleRecenter}
+            followsUser={mapFollowsUser}
+            distance={distance}
+              pace={pace}
+              displayDuration={displayDuration}
+              formatDuration={formatDuration}
+          />
         </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Duration</Text>
-          <Text style={styles.statValue}>{formatDuration(displayDuration)}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statLabel}>Pace</Text>
-          <Text style={styles.statValue}>{pace} /km</Text>
-        </View>
-      </View>
-      
-      {/* Controls */}
-      <View style={styles.controlsContainer}>
-        {!isTracking ? (
-          // Start button
-          <TouchableOpacity 
-            style={styles.startButton}
-            onPress={startRun}
-          >
-            <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Start Run</Text>
-          </TouchableOpacity>
-        ) : (
-          // Run in progress controls
-          <View style={styles.runningControls}>
-            <TouchableOpacity 
-              style={styles.cancelButton}
-              onPress={showDiscardAlert}
-            >
-              <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            
-            {/* 
-            <TouchableOpacity 
-              style={styles.pauseButton}
-              onPress={pauseRun}
-            >
-              <FontAwesomeIcon icon={faPause} size={24} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Pause</Text>
-            </TouchableOpacity>
-            */}
-            
-            <TouchableOpacity 
-              style={styles.stopButton}
-              onPress={stopRun}
-            >
-              <FontAwesomeIcon icon={faStop} size={24} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Stop and finish</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-      
-      {/* Back Button */}
-      <TouchableOpacity 
-        style={styles.backButton}
-        onPress={() => {
-          if (isTracking) {
-            showDiscardAlert();
-          } else {
-            navigation.goBack();
-          }
-        }}
-      >
-        <FontAwesomeIcon icon={faArrowLeft} size={20} color="#FFFFFF" />
-      </TouchableOpacity>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: 'relative',
   },
-  mapContainer: {
-    flex: 1,
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  placeholderMap: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#3333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  placeholderText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 15,
-    backgroundColor: '#222',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statLabel: {
-    color: '#aaa',
-    fontSize: 14,
-  },
-  statValue: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  controlsContainer: {
-    paddingVertical: 20,
-    paddingHorizontal: 20,
-    backgroundColor: '#111',
-    marginBottom:80
-
-  },
-  startButton: {
-    backgroundColor: '#4CAF50', // Green
-    borderRadius: 30,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  runningControls: {
-    flexDirection: 'row',
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 10,
+    flexDirection: 'column',
     justifyContent: 'space-between',
   },
-  pauseButton: {
-    backgroundColor: '#FFC107', // Amber
-    borderRadius: 30,
-    paddingVertical: 15,
+  controlsWrapper: {
+    position: 'absolute',
+    bottom: 100, // 100px above bottom nav
+    left: 0,
+    right: 0,
     paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    flex: 1,
-    marginHorizontal: 5,
-    
-  },
-  resumeButton: {
-    backgroundColor: '#4CAF50', // Green
-    borderRadius: 30,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  stopButton: {
-    backgroundColor: '#F44336', // Red
-    borderRadius: 30,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    flex: 1,
-    marginHorizontal: 5,
-  },
-  cancelButton: {
-    backgroundColor: '#555',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginLeft: 10,
   },
   backButton: {
     position: 'absolute',
@@ -1075,5 +979,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 20
   },
 }); 
